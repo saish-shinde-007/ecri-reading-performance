@@ -1,0 +1,30 @@
+# data is never committed — see docs/data.md
+data/raw/*
+data/interim/*
+data/processed/*
+!data/**/.gitkeep
+
+# generated artefacts
+reports/figures/*
+!reports/figures/.gitkeep
+reports/*.md
+!reports/.gitkeep
+models/*
+!models/.gitkeep
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+
+# os / editor
+.DS_Store
+.vscode/
+.idea/
