@@ -79,7 +79,7 @@ def load_analysis(
             f"{paths.ANALYSIS_CSV} not found and synthetic data was refused; see docs/data.md"
         )
     warnings.warn(
-        f"{paths.ANALYSIS_CSV.relative_to(paths.ROOT)} not found — using synthetic data. "
+        f"{paths.rel(paths.ANALYSIS_CSV)} not found — using synthetic data. "
         "Numbers are NOT results about real students. See docs/data.md to download.",
         UserWarning,
         stacklevel=2,

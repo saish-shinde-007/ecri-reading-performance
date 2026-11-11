@@ -69,8 +69,13 @@ def association_table(frame: pd.DataFrame, target: str) -> pd.DataFrame:
         x = labelled.loc[mask, col].to_numpy(float)
         if np.std(x) == 0 or np.std(y[mask]) == 0:
             continue
-        rows.append({"feature": col, "n": int(mask.sum()),
-                     "r": round(float(np.corrcoef(x, y[mask])[0, 1]), 3)})
+        rows.append(
+            {
+                "feature": col,
+                "n": int(mask.sum()),
+                "r": round(float(np.corrcoef(x, y[mask])[0, 1]), 3),
+            }
+        )
     out = pd.DataFrame(rows).set_index("feature")
     return out.reindex(out["r"].abs().sort_values(ascending=False).index)
 
@@ -81,7 +86,7 @@ def _save(fig: plt.Figure, name: str) -> str:
     fig.tight_layout()
     fig.savefig(out, dpi=120)
     plt.close(fig)
-    return str(out.relative_to(paths.ROOT))
+    return paths.rel(out)
 
 
 def plot_missingness(table: pd.DataFrame) -> str:

@@ -28,8 +28,12 @@ def _categorical_branch() -> Pipeline:
     return Pipeline(
         [
             ("impute", SimpleImputer(strategy="most_frequent")),
-            ("encode", OneHotEncoder(handle_unknown="infrequent_if_exist", min_frequency=5,
-                                     sparse_output=False)),
+            (
+                "encode",
+                OneHotEncoder(
+                    handle_unknown="infrequent_if_exist", min_frequency=5, sparse_output=False
+                ),
+            ),
         ]
     )
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import sys
 import warnings
 
@@ -31,9 +32,11 @@ def cmd_synth(config: Config, args: argparse.Namespace) -> int:
     out = paths.INTERIM / "synthetic_ECRIDataSet.csv"
     frame.to_csv(out, index=False)
     labelled = frame[frame[config.target].notna()]
-    print(f"wrote {out.relative_to(paths.ROOT)}: {frame.shape[0]:,} rows x {frame.shape[1]} cols")
-    print(f"  labelled: {len(labelled):,} ({len(labelled) / len(frame):.1%}), "
-          f"positive rate {labelled[config.target].mean():.3f}")
+    print(f"wrote {paths.rel(out)}: {frame.shape[0]:,} rows x {frame.shape[1]} cols")
+    print(
+        f"  labelled: {len(labelled):,} ({len(labelled) / len(frame):.1%}), "
+        f"positive rate {labelled[config.target].mean():.3f}"
+    )
     return 0
 
 
@@ -46,8 +49,10 @@ def cmd_check(config: Config, args: argparse.Namespace) -> int:
     )
     print(report.summary())
     X, y, groups = split.features_and_target(frame, config.target)
-    print(f"contract OK: {X.shape[1]} features, {len(y)} labelled rows, "
-          f"{0 if groups is None else groups.nunique()} schools")
+    print(
+        f"contract OK: {X.shape[1]} features, {len(y)} labelled rows, "
+        f"{0 if groups is None else groups.nunique()} schools"
+    )
     print("leakage guard: passed")
     return 0
 
@@ -75,8 +80,11 @@ def cmd_baseline(config: Config, args: argparse.Namespace) -> int:
     for i in range(repeats):
         seed = config.seed + i
         current = split.make_split(
-            frame, config.target, strategy=config.split.strategy,
-            test_size=config.split.test_size, seed=seed,
+            frame,
+            config.target,
+            strategy=config.split.strategy,
+            test_size=config.split.test_size,
+            seed=seed,
         )
         if i == 0:
             print(current.describe())
@@ -87,8 +95,15 @@ def cmd_baseline(config: Config, args: argparse.Namespace) -> int:
             if r.warning:
                 print(f"  WARNING [{r.name}] {r.warning}")
 
-    shown = ["roc_auc", "average_precision", "accuracy", "balanced_accuracy", "f1",
-             "recall_at_risk", "brier"]
+    shown = [
+        "roc_auc",
+        "average_precision",
+        "accuracy",
+        "balanced_accuracy",
+        "f1",
+        "recall_at_risk",
+        "brier",
+    ]
     if repeats == 1:
         print(f"\n{tables[0][shown].round(3).to_string()}")
     else:
@@ -111,7 +126,7 @@ def cmd_baseline(config: Config, args: argparse.Namespace) -> int:
         + to_markdown(tables[0][shown].round(3))
         + "\n\n(First split shown; see stdout for the multi-split spread.)\n"
     )
-    print(f"\nwrote {out.relative_to(paths.ROOT)}")
+    print(f"\nwrote {paths.rel(out)}")
     return 0
 
 
@@ -142,9 +157,6 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    if args.quiet:
-        warnings.simplefilter("ignore")
-
     config = load_config(args.config)
     overrides = {}
     if args.target:
@@ -158,7 +170,14 @@ def main(argv: list[str] | None = None) -> int:
 
         config = replace(config, **overrides)
 
-    return COMMANDS[args.command](config, args)
+    # catch_warnings scopes --quiet to this call. A bare simplefilter() would
+    # mutate the process-wide filter and silence an importing caller's warnings
+    # too, which is how the synthetic-data warning went missing under pytest.
+    with contextlib.ExitStack() as stack:
+        if args.quiet:
+            stack.enter_context(warnings.catch_warnings())
+            warnings.simplefilter("ignore")
+        return COMMANDS[args.command](config, args)
 
 
 if __name__ == "__main__":

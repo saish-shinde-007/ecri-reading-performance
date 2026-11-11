@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install the package
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Lint
+        run: |
+          ruff check src tests tools
+          ruff format --check src tests tools
+
+      - name: Test
+        # The real CSVs are never committed (CC BY-NC-SA, see docs/data.md), so
+        # the whole suite runs against ecri.datagen. The coverage floor is the
+        # gate that keeps that from quietly becoming a smoke test.
+        run: pytest --cov --cov-report=term-missing --cov-fail-under=90
+
+      - name: End-to-end pipeline on synthetic data
+        run: |
+          ecri -q check
+          ecri -q synth --rows 500
+          ecri -q eda
+          ecri -q baseline --repeats 3
+
+      - name: Verify the derived label rule
+        # Exits 2 when data/raw is empty, which is the normal CI case. Only a
+        # genuine mismatch (exit 1) fails the build.
+        run: |
+          python tools/verify_target_rule.py; status=$?
+          if [ "$status" -eq 2 ]; then
+            echo "::notice::real ECRI CSVs absent — label-rule check skipped"
+          elif [ "$status" -ne 0 ]; then
+            echo "::error::the derived label rule no longer reproduces"
+            exit 1
+          fi

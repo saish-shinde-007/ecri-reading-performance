@@ -43,9 +43,7 @@ def main() -> int:
     failures = 0
     for measure, target in PAIRS:
         labelled = analysis.loc[analysis[target].notna(), ["StuID", target]]
-        wide = longitudinal.pivot_table(
-            index="StuID", columns="t", values=measure, aggfunc="first"
-        )
+        wide = longitudinal.pivot_table(index="StuID", columns="t", values=measure, aggfunc="first")
         if BASELINE_T not in wide.columns or OUTCOME_T not in wide.columns:
             print(f"{measure}: t={BASELINE_T}/{OUTCOME_T} not both present", file=sys.stderr)
             failures += 1

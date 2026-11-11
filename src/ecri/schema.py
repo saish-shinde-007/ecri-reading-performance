@@ -25,34 +25,34 @@ TARGETS = (TARGET_WORD_ID, TARGET_WORD_ATTACK)
 # ── features, grouped by where they come from ────────────────────────────────
 STUDENT_CATEGORICAL = (
     "Gender",  # 0/1
-    "LEP",     # limited English proficiency
-    "SpEd",    # special education status
-    "Tier",    # RTI tier 1/2/3
-    "Tx",      # 0 = control, 1 = ECRI intervention
+    "LEP",  # limited English proficiency
+    "SpEd",  # special education status
+    "Tier",  # RTI tier 1/2/3
+    "Tx",  # 0 = control, 1 = ECRI intervention
     "Cohort",  # study cohort 1/2
 )
 STUDENT_NUMERIC = ("Age1b",)  # age in months at baseline
 
 # Baseline (t=0) reading assessments. DIBELS, Stanford Achievement, Woodcock.
 ASSESSMENT_NUMERIC = (
-    "NWFcls",   # Nonsense Word Fluency, correct letter sounds
-    "NWFwrc",   # Nonsense Word Fluency, words recoded completely and correctly
-    "ORFwc",    # Oral Reading Fluency, words correct per minute
-    "SAwrS",    # Stanford Achievement, word reading
-    "SAsrS",    # Stanford Achievement, sentence reading
-    "SAtoS",    # Stanford Achievement, total reading
+    "NWFcls",  # Nonsense Word Fluency, correct letter sounds
+    "NWFwrc",  # Nonsense Word Fluency, words recoded completely and correctly
+    "ORFwc",  # Oral Reading Fluency, words correct per minute
+    "SAwrS",  # Stanford Achievement, word reading
+    "SAsrS",  # Stanford Achievement, sentence reading
+    "SAtoS",  # Stanford Achievement, total reading
     "RMwidRS",  # Woodcock Word Identification, baseline
     "RMwdaRS",  # Woodcock Word Attack, baseline
 )
 
 # Classroom and teacher context, constant within a classroom.
 CONTEXT_NUMERIC = (
-    "Tier2_N",         # number of at-risk readers in the class
-    "grp_rate",        # rate of group practice
-    "rcmistot",        # Ratings of Classroom Management and Instructional Support
-    "gnrl_fid",        # fidelity of implementation
-    "TKPctCrct",       # Teacher Knowledge Survey, percent correct
-    "Tier2MinRd",      # Tier-2 minutes of reading instruction
+    "Tier2_N",  # number of at-risk readers in the class
+    "grp_rate",  # rate of group practice
+    "rcmistot",  # Ratings of Classroom Management and Instructional Support
+    "gnrl_fid",  # fidelity of implementation
+    "TKPctCrct",  # Teacher Knowledge Survey, percent correct
+    "Tier2MinRd",  # Tier-2 minutes of reading instruction
     "TYearsTeaching",  # teacher years of experience
 )
 
@@ -64,18 +64,39 @@ FEATURES = CATEGORICAL_FEATURES + NUMERIC_FEATURES
 # they carry no signal and are dropped rather than fed to a one-hot encoder.
 CONSTANT_COLUMNS = ("Keep", "Time", "t")
 
-ANALYSIS_COLUMNS = IDENTIFIERS + CATEGORICAL_FEATURES + STUDENT_NUMERIC + (
-    "Tier2_N", "grp_rate", "rcmistot", "gnrl_fid", "TKPctCrct", "Tier2MinRd",
-    "TYearsTeaching",
-) + CONSTANT_COLUMNS + ASSESSMENT_NUMERIC + TARGETS
+ANALYSIS_COLUMNS = (
+    IDENTIFIERS
+    + CATEGORICAL_FEATURES
+    + STUDENT_NUMERIC
+    + (
+        "Tier2_N",
+        "grp_rate",
+        "rcmistot",
+        "gnrl_fid",
+        "TKPctCrct",
+        "Tier2MinRd",
+        "TYearsTeaching",
+    )
+    + CONSTANT_COLUMNS
+    + ASSESSMENT_NUMERIC
+    + TARGETS
+)
 
 # ── leakage deny-list ────────────────────────────────────────────────────────
 # The label is a t=0 -> t=1 gain, so any post-baseline measurement reconstructs
 # it. These are the names a merge against ECRIRawData.csv would introduce.
 _POST_BASELINE_SUFFIXES = ("_t0.5", "_t1", "_t1.0", "_t2", "_t2.0", "_post", "_followup")
 _POST_BASELINE_MEASURES = (
-    "RMwidRS", "RMwdaRS", "NWFcls", "NWFwrc", "ORFwc",
-    "SAwrS", "SAsrS", "SAtoS", "SAwsS", "SArcS",
+    "RMwidRS",
+    "RMwdaRS",
+    "NWFcls",
+    "NWFwrc",
+    "ORFwc",
+    "SAwrS",
+    "SAsrS",
+    "SAtoS",
+    "SAwsS",
+    "SArcS",
 )
 LEAKING_COLUMNS = frozenset(
     [*TARGETS, "Wave", "gain", "growth"]
@@ -89,9 +110,7 @@ def is_leaking(column: str) -> bool:
     if name in LEAKING_COLUMNS:
         return True
     lowered = name.lower()
-    return lowered.endswith("_target") or any(
-        lowered.endswith(s) for s in _POST_BASELINE_SUFFIXES
-    )
+    return lowered.endswith("_target") or any(lowered.endswith(s) for s in _POST_BASELINE_SUFFIXES)
 
 
 @dataclass(frozen=True)

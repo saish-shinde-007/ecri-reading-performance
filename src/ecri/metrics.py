@@ -79,7 +79,10 @@ def evaluate(y_true, y_score, *, threshold: float = 0.5) -> ClassificationMetric
         average_precision=ap,
         brier=float(brier_score_loss(y_true, np.clip(y_score, 0, 1))),
         recall_at_risk=float(tn / (tn + fp)) if (tn + fp) else float("nan"),
-        tn=int(tn), fp=int(fp), fn=int(fn), tp=int(tp),
+        tn=int(tn),
+        fp=int(fp),
+        fn=int(fn),
+        tp=int(tp),
     )
 
 

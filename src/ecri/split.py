@@ -132,10 +132,8 @@ def cv_folds(
         n_groups = int(pd.Series(groups).nunique())
         if n_groups < n_folds:
             raise ValueError(f"{n_folds} folds requested but only {n_groups} school(s)")
-        yield from StratifiedGroupKFold(
-            n_splits=n_folds, shuffle=True, random_state=seed
-        ).split(X, y, groups=groups)
+        yield from StratifiedGroupKFold(n_splits=n_folds, shuffle=True, random_state=seed).split(
+            X, y, groups=groups
+        )
     else:
-        yield from StratifiedKFold(
-            n_splits=n_folds, shuffle=True, random_state=seed
-        ).split(X, y)
+        yield from StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed).split(X, y)

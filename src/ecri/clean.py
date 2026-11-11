@@ -12,20 +12,23 @@ from . import schema
 # suspect and left in place; silently clipping real assessment data would hide
 # a coding error rather than surface it.
 PLAUSIBLE_RANGES: dict[str, tuple[float, float]] = {
-    "Age1b": (48, 120),       # months
+    "Age1b": (48, 120),  # months
     "Tier": (1, 3),
     "Tier2_N": (0, 40),
     "grp_rate": (0, 20),
-    "rcmistot": (1, 5),       # rating scale
-    "gnrl_fid": (0, 1),       # proportion
-    "TKPctCrct": (0, 100),    # percent
-    "Tier2MinRd": (0, 600),   # minutes
+    "rcmistot": (1, 5),  # rating scale
+    "gnrl_fid": (0, 1),  # proportion
+    "TKPctCrct": (0, 100),  # percent
+    "Tier2MinRd": (0, 600),  # minutes
     "TYearsTeaching": (0, 60),
     "NWFcls": (0, 300),
     "NWFwrc": (0, 150),
     "ORFwc": (0, 300),
-    "SAwrS": (200, 800), "SAsrS": (200, 800), "SAtoS": (200, 800),
-    "RMwidRS": (0, 120), "RMwdaRS": (0, 60),
+    "SAwrS": (200, 800),
+    "SAsrS": (200, 800),
+    "SAtoS": (200, 800),
+    "RMwidRS": (0, 120),
+    "RMwdaRS": (0, 60),
 }
 
 
@@ -71,7 +74,8 @@ def drop_duplicate_students(frame: pd.DataFrame, report: CleaningReport) -> pd.D
 
 def drop_constant_columns(frame: pd.DataFrame, report: CleaningReport) -> pd.DataFrame:
     drop = [
-        c for c in frame.columns
+        c
+        for c in frame.columns
         if c not in schema.IDENTIFIERS and frame[c].nunique(dropna=True) <= 1
     ]
     report.constant_columns_dropped = drop
@@ -110,14 +114,17 @@ def prepare(
     labelled = out[out[target].notna()].copy()
     report.unlabelled_rows_dropped = len(out) - len(labelled)
 
-    out = drop_constant_columns(labelled, report)
-    flag_out_of_range(out, report)
-
-    for col in schema.roles_for(list(out.columns)).all:
-        rate = float(out[col].isna().mean())
+    # Missingness is measured first so an all-NaN column is reported as
+    # "100% missing" rather than mis-attributed to drop_constant_columns,
+    # which would also match it.
+    for col in schema.roles_for(list(labelled.columns)).all:
+        rate = float(labelled[col].isna().mean())
         if rate > max_missing_rate:
             report.high_missing_columns_dropped[col] = rate
-    out = out.drop(columns=list(report.high_missing_columns_dropped))
+    out = labelled.drop(columns=list(report.high_missing_columns_dropped))
+
+    out = drop_constant_columns(out, report)
+    flag_out_of_range(out, report)
 
     # The other target is a sibling label, not a feature.
     other = [t for t in schema.TARGETS if t != target and t in out.columns]

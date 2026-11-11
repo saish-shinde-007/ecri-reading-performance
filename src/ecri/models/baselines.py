@@ -84,15 +84,13 @@ def run_baselines(split: Split, *, seed: int = 20260101) -> list[BaselineResult]
         pipeline.fit(split.X_train[columns], split.y_train)
         scores = _positive_scores(pipeline, split.X_test[columns])
         metrics = evaluate(split.y_test, scores)
-        results.append(
-            BaselineResult(name, description, metrics, leakage_warning(metrics))
-        )
+        results.append(BaselineResult(name, description, metrics, leakage_warning(metrics)))
     return results
 
 
 def results_table(results: list[BaselineResult]) -> pd.DataFrame:
     """One row per baseline, sorted by AUC."""
-    frame = pd.DataFrame(
-        [{"model": r.name, **r.metrics.as_dict()} for r in results]
-    ).set_index("model")
+    frame = pd.DataFrame([{"model": r.name, **r.metrics.as_dict()} for r in results]).set_index(
+        "model"
+    )
     return frame.sort_values("roc_auc", ascending=False)

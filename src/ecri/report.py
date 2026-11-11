@@ -25,17 +25,19 @@ def to_markdown(frame: pd.DataFrame, *, index_label: str | None = None) -> str:
     """Render a frame as a GitHub-flavoured Markdown table, index included."""
     label = index_label if index_label is not None else (frame.index.name or "")
     headers = [label, *(str(c) for c in frame.columns)]
-    rows = [
-        [_cell(idx), *(_cell(v) for v in frame.loc[idx].tolist())]
-        for idx in frame.index
-    ]
+    rows = [[_cell(idx), *(_cell(v) for v in frame.loc[idx].tolist())] for idx in frame.index]
     widths = [
         max(len(headers[i]), *(len(r[i]) for r in rows)) if rows else len(headers[i])
         for i in range(len(headers))
     ]
+
     def line(cells: list[str]) -> str:
         return "| " + " | ".join(c.ljust(w) for c, w in zip(cells, widths, strict=True)) + " |"
 
     return "\n".join(
-        [line(headers), "|" + "|".join("-" * (w + 2) for w in widths) + "|", *(line(r) for r in rows)]
+        [
+            line(headers),
+            "|" + "|".join("-" * (w + 2) for w in widths) + "|",
+            *(line(r) for r in rows),
+        ]
     )

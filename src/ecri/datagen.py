@@ -59,19 +59,40 @@ TIER_PROBS = {1.0: 0.527, 2.0: 0.242, 3.0: 0.231}
 
 # Null rates on the labelled rows (F5), which is where they bite.
 NULL_RATES_LABELLED = {
-    "Tier2MinRd": 0.248, "TKPctCrct": 0.223, "TYearsTeaching": 0.223,
-    "grp_rate": 0.056, "rcmistot": 0.035, "gnrl_fid": 0.032,
-    "NWFcls": 0.011, "NWFwrc": 0.011, "ORFwc": 0.011,
-    "Age1b": 0.004, "SpEd": 0.004, "LEP": 0.003,
+    "Tier2MinRd": 0.248,
+    "TKPctCrct": 0.223,
+    "TYearsTeaching": 0.223,
+    "grp_rate": 0.056,
+    "rcmistot": 0.035,
+    "gnrl_fid": 0.032,
+    "NWFcls": 0.011,
+    "NWFwrc": 0.011,
+    "ORFwc": 0.011,
+    "Age1b": 0.004,
+    "SpEd": 0.004,
+    "LEP": 0.003,
 }
 # Null rates on the unlabelled rows, which dominate the all-rows figures.
 NULL_RATES_UNLABELLED = {
-    "Age1b": 1.0, "RMwidRS": 1.0, "RMwdaRS": 1.0,
-    "ORFwc": 0.906, "NWFcls": 0.648, "NWFwrc": 0.648,
-    "grp_rate": 0.479, "rcmistot": 0.459, "Tier2MinRd": 0.258,
-    "TKPctCrct": 0.256, "TYearsTeaching": 0.256, "Tier": 0.134,
-    "gnrl_fid": 0.080, "SAwrS": 0.128, "SAsrS": 0.128, "SAtoS": 0.128,
-    "LEP": 0.061, "SpEd": 0.061, "Gender": 0.002,
+    "Age1b": 1.0,
+    "RMwidRS": 1.0,
+    "RMwdaRS": 1.0,
+    "ORFwc": 0.906,
+    "NWFcls": 0.648,
+    "NWFwrc": 0.648,
+    "grp_rate": 0.479,
+    "rcmistot": 0.459,
+    "Tier2MinRd": 0.258,
+    "TKPctCrct": 0.256,
+    "TYearsTeaching": 0.256,
+    "Tier": 0.134,
+    "gnrl_fid": 0.080,
+    "SAwrS": 0.128,
+    "SAsrS": 0.128,
+    "SAtoS": 0.128,
+    "LEP": 0.061,
+    "SpEd": 0.061,
+    "Gender": 0.002,
 }
 # Columns missing together, as one survey or one assessment session.
 MISSINGNESS_BLOCKS = (
@@ -85,8 +106,14 @@ POSITIVE_RATE = {"RMwidRS_target": 0.527, "RMwdaRS_target": 0.576}
 # follow the real point-biserial correlations in F3 — baseline level is mildly
 # NEGATIVE because low starters have more headroom to gain.
 GAIN_WEIGHTS = {
-    "RMwidRS": -0.42, "SAsrS": -0.26, "ORFwc": -0.26, "SAtoS": -0.14,
-    "Tier2_N": 0.15, "gnrl_fid": 0.13, "SAwrS": -0.09, "Tx": 0.10,
+    "RMwidRS": -0.42,
+    "SAsrS": -0.26,
+    "ORFwc": -0.26,
+    "SAtoS": -0.14,
+    "Tier2_N": 0.15,
+    "gnrl_fid": 0.13,
+    "SAwrS": -0.09,
+    "Tx": 0.10,
 }
 # Noise SD relative to the signal. Tuned so the achievable AUC lands near 0.62.
 GAIN_NOISE = 1.9
@@ -190,8 +217,10 @@ def _apply_missingness(
     blocked = {c for block in MISSINGNESS_BLOCKS for c in block}
     groups = [*MISSINGNESS_BLOCKS, *[(c,) for c in schema.FEATURES if c not in blocked]]
 
-    for rows, rates in ((labelled, NULL_RATES_LABELLED), (df.index.difference(labelled),
-                                                          NULL_RATES_UNLABELLED)):
+    for rows, rates in (
+        (labelled, NULL_RATES_LABELLED),
+        (df.index.difference(labelled), NULL_RATES_UNLABELLED),
+    ):
         if len(rows) == 0:
             continue
         for block in groups:

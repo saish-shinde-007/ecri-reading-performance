@@ -24,6 +24,19 @@ SCHOOL_META_CSV = RAW / "MetaData.csv"
 WRITABLE = (INTERIM, PROCESSED, REPORTS, FIGURES, MODELS)
 
 
+def rel(path: Path) -> str:
+    """Repo-relative string when possible, absolute otherwise.
+
+    Path.relative_to raises for anything outside ROOT, which under pytest's
+    tmp_path is every artefact. Formatting a path must never be the thing that
+    fails a run.
+    """
+    try:
+        return str(Path(path).relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
+
 def ensure_dirs() -> None:
     """Create the output directories. Safe to call repeatedly."""
     for d in WRITABLE:
