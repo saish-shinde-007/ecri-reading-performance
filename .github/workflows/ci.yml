@@ -62,7 +62,12 @@ jobs:
         # Exits 2 when data/raw is empty, which is the normal CI case. Only a
         # genuine mismatch (exit 1) fails the build.
         run: |
-          python tools/verify_target_rule.py; status=$?
+          # `shell: bash -e` aborts on the non-zero exit before $? is read,
+          # so the exit code has to be captured with errexit off.
+          set +e
+          python tools/verify_target_rule.py
+          status=$?
+          set -e
           if [ "$status" -eq 2 ]; then
             echo "::notice::real ECRI CSVs absent — label-rule check skipped"
           elif [ "$status" -ne 0 ]; then
