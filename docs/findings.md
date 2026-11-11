@@ -73,10 +73,11 @@ Baseline predictors are only weakly associated with the label:
 | `SAwrS` | −0.042 |
 | `NWFcls` | −0.011 |
 
-The strongest single association is |r| = 0.20. **Expect ROC-AUC in the 0.55–0.65
-band, not 0.9.** A model near 0.60 AUC here is a real result; one near 0.95
-means something leaked. Baselines (T12) exist to make that threshold concrete
-before any tuning starts.
+The strongest single association is |r| = 0.20, so no single feature is a
+useful predictor. Combining them does better than that ceiling suggests — see
+F7 for what baselines actually reach — but nothing here supports a 0.9-AUC
+expectation, and `metrics.leakage_warning()` treats anything at or above 0.85
+as a leak to investigate rather than a result to report.
 
 The negative sign on baseline score is coherent with F1 rather than surprising:
 lower starters have more headroom to gain 27 points, so a gain-defined label is
@@ -147,3 +148,56 @@ table has 6,803 students and 171 distinct `TeachID`, with 81 rows missing
 between the two files and the published code's own filtering is not documented.
 Use the raw file's counts when quoting the dataset, the analysis table's when
 quoting this project's n.
+
+## F7 — Baselines: logistic regression reaches 0.66 AUC, and the spread matters
+
+Measured with `make baseline`, 12 random splits per cell, mean ± SD of ROC-AUC
+on held-out data:
+
+### `RMwidRS_target` (Word Identification)
+
+| Model | School-split | Student-split |
+|---|---|---|
+| logistic regression, all features | **0.657 ± 0.037** | 0.692 ± 0.034 |
+| logistic, baseline Woodcock score only | 0.602 ± 0.029 | 0.592 ± 0.028 |
+| decision tree, depth 3 | 0.593 ± 0.021 | 0.613 ± 0.027 |
+| stratified guess | 0.513 ± 0.032 | 0.483 ± 0.033 |
+| majority class | 0.500 | 0.500 |
+
+### `RMwdaRS_target` (Word Attack)
+
+| Model | School-split | Student-split |
+|---|---|---|
+| logistic regression, all features | **0.611 ± 0.037** | 0.638 ± 0.043 |
+| decision tree, depth 3 | 0.523 ± 0.021 | 0.541 ± 0.021 |
+| logistic, baseline score only | 0.507 ± 0.049 | 0.501 ± 0.045 |
+| stratified guess | 0.516 ± 0.026 | 0.503 ± 0.027 |
+| majority class | 0.500 | 0.500 |
+
+Four things to carry forward:
+
+**The spread is the headline, not the mean.** A single school-split put logistic
+regression at 0.703 on Word ID — the top of a 0.594–0.720 range. With ~200 test
+rows the per-split SD is ~0.037, so any two models within ~0.07 of each other on
+one split are indistinguishable. **Report mean ± SD over repeated splits, never a
+single number.** This is the main reason the phase-2 CV harness (T21) comes
+before any model tuning rather than after.
+
+**School-split is harder than student-split**, by 0.03–0.04 on both targets, as
+it should be: a held-out school shares no teacher, classroom or fidelity context
+with training. The default strategy stays `school`, and a result quoted without
+its split strategy is not interpretable.
+
+**Multivariate signal is real and the univariate correlations understate it.**
+F3's best single predictor is |r| = 0.20, equivalent to roughly 0.61 AUC —
+which is what the baseline-score-only model gets on Word ID. The full feature
+set adds ~0.055 on top. On Word Attack the baseline score alone is at chance
+(0.507) while the full set reaches 0.611, so for that target essentially all the
+signal is in the classroom, teacher and other-assessment features.
+
+**Word Attack is the harder target.** ~0.046 lower AUC, and no usable
+single-feature signal. `RMwidRS_target` is the better primary task and is the
+config default.
+
+Bottom line: a phase-2 model is only interesting if it clears **0.657 ± 0.037**
+school-split on Word ID over repeated splits. That is the bar.
