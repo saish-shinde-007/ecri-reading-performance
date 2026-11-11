@@ -1,0 +1,19 @@
+# Primary task: adequate growth on Woodcock Word Identification.
+# Switch to RMwdaRS_target for the Word Attack task.
+target: RMwidRS_target
+
+seed: 20260101
+
+# Columns missing in more than this fraction of labelled rows are dropped.
+# ORFwc sits at ~79% missing overall but is far better covered on the labelled
+# Tier-2 subset, so the gate is deliberately loose and measured after filtering.
+max_missing_rate: 0.95
+
+split:
+  # school = hold out whole schools (the paper's School-split). The honest
+  # generalisation test: a new school shares no teacher or classroom context.
+  strategy: school
+  test_size: 0.25
+  n_folds: 5
+
+synthetic_rows: 6803
