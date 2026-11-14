@@ -1,4 +1,4 @@
-.PHONY: install data synth check eda baseline cv impute importance calibrate school model rank-demo test lint verify all clean
+.PHONY: install data synth check eda baseline cv impute importance calibrate school model rank-demo test lint verify reproduce readme release-check all clean
 
 PY := .venv/bin/python
 
@@ -51,14 +51,31 @@ test:
 	$(PY) -m pytest --cov --cov-report=term-missing --cov-fail-under=90
 
 lint:
-	.venv/bin/ruff check src tests
-	.venv/bin/ruff format --check src tests
+	.venv/bin/ruff check src tests tools
+	.venv/bin/ruff format --check src tests tools
 
 verify:
 	$(PY) tools/verify_target_rule.py
 
-all: check eda cv impute importance calibrate school
+# T39: re-derive the headline numbers and compare them with results/expected.json.
+reproduce:
+	$(PY) -m ecri.cli reproduce
+
+# Regenerate the README results table from results/expected.json.
+readme:
+	$(PY) -m ecri.cli readme
+
+# Everything that must pass before a release tag — see RELEASING.md.
+release-check: lint test
+	$(PY) tools/fetch_data.py --check
+	$(PY) tools/verify_target_rule.py
+	$(PY) -m ecri.cli readme --check
+	$(PY) -m ecri.cli reproduce
+
+# Every report in reports/, plus the saved model, regenerated from scratch.
+all: check eda baseline cv impute importance calibrate school model
 
 clean:
-	rm -rf reports/figures/*.png reports/*.md data/interim/* data/processed/*
+	rm -rf reports/figures/*.png reports/*.md reports/*.csv data/interim/* data/processed/*
+	rm -rf models/*/
 	find . -name __pycache__ -type d -prune -exec rm -rf {} +

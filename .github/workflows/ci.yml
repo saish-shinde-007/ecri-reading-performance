@@ -87,3 +87,30 @@ jobs:
             echo "::error::the derived label rule no longer reproduces"
             exit 1
           fi
+
+  reproduce:
+    # The reproduction gate on the real data, on a third machine (Linux x86-64)
+    # besides the laptop and the M4. The data is fetched from the pinned commit
+    # and verified by sha256 on this runner's disk only: never uploaded, never
+    # cached, never committed (CC BY-NC-SA 4.0).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Install from the lock
+        run: |
+          echo "$VIRTUAL_ENV/bin" >> "$GITHUB_PATH"
+          uv sync --locked --extra dev
+
+      - name: Fetch the pinned data
+        run: python tools/fetch_data.py
+
+      - name: Reproduce the headline numbers
+        run: ecri reproduce
+
