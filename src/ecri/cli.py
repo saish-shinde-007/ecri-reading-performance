@@ -572,6 +572,89 @@ def _cmd_rank(config: Config, args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_reproduce(config: Config, args: argparse.Namespace) -> int:
+    """Re-derive the headline numbers and compare them with the committed record."""
+    from . import reproduce
+
+    print(
+        f"reproducing the canonical results (always {reproduce.CANONICAL['repeats']} repeats; "
+        "--target and --strategy do not apply)"
+    )
+    record = reproduce.run(progress=lambda message: print(f"  {message}"))
+
+    if args.write:
+        previous = None
+        if reproduce.EXPECTED_PATH.is_file():
+            previous = reproduce.load_expected()
+        path = reproduce.write_expected(record)
+        readme = reproduce.README_PATH.read_text()
+        reproduce.README_PATH.write_text(reproduce.render_readme(readme, record))
+        print(f"recorded {paths.rel(path)} and regenerated the README results table")
+        if previous is not None and previous.get("config") == record["config"]:
+            checks, _ = reproduce.compare(record, previous)
+            moved = [c for c in checks if not c.ok]
+            print(f"{len(moved)} number(s) moved beyond {reproduce.TOLERANCE:g} vs the old record")
+            for check in moved:
+                print(check.line())
+        return 0
+
+    expected = reproduce.load_expected()
+    checks, unrecorded = reproduce.compare(record, expected)
+    failed = [c for c in checks if not c.ok]
+    env_then, env_now = expected.get("environment", {}), record["environment"]
+    differs = {k: (env_then.get(k), v) for k, v in env_now.items() if env_then.get(k) != v}
+    if differs:
+        print(
+            "environment differs from the recording run: "
+            + ", ".join(f"{k} {a} → {b}" for k, (a, b) in differs.items())
+        )
+    if failed:
+        print(
+            f"\nFAILED: {len(failed)} of {len(checks)} numbers moved by more than "
+            f"{reproduce.TOLERANCE:g}:"
+        )
+        for check in failed:
+            print(check.line())
+    else:
+        worst = max(
+            (
+                abs(float(c.actual) - float(c.expected))
+                for c in checks
+                if isinstance(c.expected, float) and isinstance(c.actual, float)
+            ),
+            default=0.0,
+        )
+        print(
+            f"\nreproduced: all {len(checks)} numbers agree to 3 dp "
+            f"(largest difference {worst:.1e})"
+        )
+    if unrecorded:
+        print(f"note: {len(unrecorded)} number(s) not in the record: {unrecorded[:5]}")
+    return 1 if failed else 0
+
+
+def _cmd_readme(config: Config, args: argparse.Namespace) -> int:
+    """Regenerate (or check) the README results table from the committed record."""
+    from . import reproduce
+
+    record = reproduce.load_expected()
+    current = reproduce.README_PATH.read_text()
+    rendered = reproduce.render_readme(current, record)
+    if args.check:
+        if rendered != current:
+            print(
+                "README results table is out of date with results/expected.json — "
+                "run `ecri readme`",
+                file=sys.stderr,
+            )
+            return 1
+        print("README results table matches results/expected.json")
+        return 0
+    reproduce.README_PATH.write_text(rendered)
+    print("README results table regenerated from results/expected.json")
+    return 0
+
+
 def _user_facing(command):
     """Report input and integrity problems as one line on stderr, exit 2.
 
@@ -580,7 +663,7 @@ def _user_facing(command):
     """
 
     def run(config: Config, args: argparse.Namespace) -> int:
-        from . import inference, persist
+        from . import inference, persist, reproduce
 
         try:
             return command(config, args)
@@ -588,6 +671,7 @@ def _user_facing(command):
             inference.InputError,
             split.LeakageError,
             persist.IntegrityError,
+            reproduce.ReproductionError,
             FileNotFoundError,
         ) as exc:
             print(f"error: {exc}", file=sys.stderr)
@@ -599,6 +683,8 @@ def _user_facing(command):
 
 cmd_model = _user_facing(_cmd_model)
 cmd_rank = _user_facing(_cmd_rank)
+cmd_reproduce = _user_facing(_cmd_reproduce)
+cmd_readme = _user_facing(_cmd_readme)
 
 
 COMMANDS = {
@@ -613,6 +699,8 @@ COMMANDS = {
     "school": cmd_school,
     "model": cmd_model,
     "rank": cmd_rank,
+    "reproduce": cmd_reproduce,
+    "readme": cmd_readme,
 }
 
 
@@ -692,6 +780,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_rank.add_argument("--out", help="write the full ranking to this CSV")
     p_rank.add_argument("--show", type=int, default=15, help="rows to print")
+
+    p_rep = sub.add_parser("reproduce", help="re-derive headline numbers, compare to the record")
+    p_rep.add_argument(
+        "--write",
+        action="store_true",
+        help="re-record results/expected.json and regenerate the README table",
+    )
+    p_md = sub.add_parser("readme", help="regenerate the README results table from the record")
+    p_md.add_argument("--check", action="store_true", help="exit 1 if the README is out of date")
     return parser
 
 

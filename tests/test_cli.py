@@ -128,3 +128,14 @@ def test_rank_refuses_a_labelled_file_cleanly(tmp_path, capsys):
 def test_verify_reports_a_missing_bundle_cleanly(tmp_path, capsys):
     assert cli.main(["-q", "model", "verify", str(tmp_path / "absent")]) == 2
     assert "ecri model train" in capsys.readouterr().err
+
+
+def test_readme_check_passes_on_the_committed_state(capsys):
+    assert cli.main(["-q", "readme", "--check"]) == 0
+    assert "matches" in capsys.readouterr().out
+
+
+def test_reproduce_without_the_pinned_data_exits_cleanly(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(paths, "RAW", tmp_path)
+    assert cli.main(["-q", "reproduce"]) == 2
+    assert "make data" in capsys.readouterr().err
