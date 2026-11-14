@@ -7,8 +7,8 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
-from sklearn.impute import SimpleImputer
-from sklearn.pipeline import Pipeline
+from sklearn.impute import MissingIndicator, SimpleImputer
+from sklearn.pipeline import FeatureUnion, Pipeline
 from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder, StandardScaler
 
 from . import schema
@@ -49,34 +49,43 @@ NATIVE_NAN = PreprocessorConfig(
 )
 
 
-def _numeric_branch(config: PreprocessorConfig) -> Pipeline:
-    steps: list[tuple[str, object]] = []
+def _imputer(config: PreprocessorConfig):
     if config.numeric_impute == "iterative":
         # Experimental in sklearn; the import has to come after the opt-in.
         from sklearn.experimental import enable_iterative_imputer  # noqa: F401
         from sklearn.impute import IterativeImputer
 
-        steps.append(
-            (
-                "impute",
-                IterativeImputer(random_state=0, max_iter=10, add_indicator=config.add_indicator),
-            )
-        )
-    elif config.numeric_impute != "none":
-        steps.append(
-            (
-                "impute",
-                SimpleImputer(strategy=config.numeric_impute, add_indicator=config.add_indicator),
-            )
-        )
-    elif config.add_indicator:
-        from sklearn.impute import MissingIndicator
+        return IterativeImputer(random_state=0, max_iter=10)
+    return SimpleImputer(strategy=config.numeric_impute)
 
-        steps.append(("indicate", MissingIndicator(features="all")))
 
+def _numeric_branch(config: PreprocessorConfig):
+    """Values imputed and scaled; missingness flags kept as plain 0/1.
+
+    The flags must NOT go through the scaler. A field missing in 0.4% of
+    training rows standardises to a ~15-sigma input when it is missing, which
+    puts it beyond L2's reach: on the real data a blank age moved the logit by
+    6.1, more than any reading measure. Left as 0/1, a flag learned from four
+    rows gets a small, regularised coefficient (F14).
+    """
+    values: list[tuple[str, object]] = []
+    if config.numeric_impute != "none":
+        values.append(("impute", _imputer(config)))
     if config.scale:
-        steps.append(("scale", StandardScaler()))
-    return Pipeline(steps) if steps else Pipeline([("passthrough", "passthrough")])
+        values.append(("scale", StandardScaler()))
+    value_pipe = Pipeline(values) if values else Pipeline([("passthrough", "passthrough")])
+
+    if not config.add_indicator:
+        return value_pipe
+    return FeatureUnion(
+        [
+            ("values", value_pipe),
+            # error_on_new=False: a field never missing in training may still be
+            # blank at inference; it is imputed, and simply has no flag column.
+            ("missing", MissingIndicator(features="missing-only", error_on_new=False)),
+        ],
+        verbose_feature_names_out=False,
+    )
 
 
 def _categorical_branch(config: PreprocessorConfig) -> Pipeline:
