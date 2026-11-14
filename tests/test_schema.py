@@ -48,7 +48,17 @@ def test_roles_for_keeps_contract_order_and_ignores_strangers():
     assert "not_a_real_column" not in roles.all
 
 
-def test_analysis_columns_cover_every_feature_and_target():
-    assert set(schema.FEATURES) <= set(schema.ANALYSIS_COLUMNS)
+def test_analysis_columns_cover_every_student_feature_and_target():
+    student_level = set(schema.FEATURES) - set(schema.SCHOOL_NUMERIC)
+    assert student_level <= set(schema.ANALYSIS_COLUMNS)
     assert set(schema.TARGETS) <= set(schema.ANALYSIS_COLUMNS)
     assert len(schema.ANALYSIS_COLUMNS) == len(set(schema.ANALYSIS_COLUMNS)) == 30
+
+
+def test_school_context_comes_from_the_join_not_the_published_table():
+    assert not set(schema.SCHOOL_NUMERIC) & set(schema.ANALYSIS_COLUMNS)
+
+
+def test_racial_composition_is_kept_apart_from_poverty():
+    # Composition must stay separately addressable so it can stay opt-in (F13).
+    assert set(schema.SCHOOL_POVERTY).isdisjoint(schema.SCHOOL_COMPOSITION)
