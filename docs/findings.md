@@ -443,3 +443,85 @@ So:
 The general lesson for the rest of phase 2: **re-run anything borderline at a
 higher repeat count before writing it down.** A lower bound within 0.001 of
 zero is a coin flip, whatever the bootstrap says.
+
+## F14 — One blank cell moved a student half the queue; the deployed model has no missingness flags
+
+Found while building the ranking contract (T28), not by any metric: in a smoke
+test, the eight most at-risk students were all records with blank fields, with
+identical scores.
+
+**Mechanism.** The T10 pipeline built missingness flags inside the imputer and
+then sent them through `StandardScaler`. A flag that is 1 in 0.4% of training
+rows standardises to a 15-sigma input, and at that scale L2 regularisation
+cannot hold its coefficient down. Measured on the real data:
+
+| Blank field | Missing in training | Logit push, flags scaled | Flags 0/1 |
+|---|---|---|---|
+| `Age1b` | 0.4% | **−6.12** | −0.91 |
+| `rcmistot` | 3.5% | −3.16 | −0.93 |
+| `gnrl_fid` | 3.2% | +1.64 | −0.31 |
+
+The largest push any present reading measure makes is 6.02. **A single blank
+age cell outweighed every reading assessment the model has.** Cross-validation
+never showed it, because almost no labelled rows have these gaps — but a
+teacher's spreadsheet would.
+
+**Effect on the ranking**, mean |change in risk percentile| when one field is
+blanked for one student:
+
+| Blank field | T10, flags scaled | Flags 0/1 | **No flags (deployed)** |
+|---|---|---|---|
+| `Age1b` | 50.5 | 27.0 | **2.0** |
+| `rcmistot` | 50.3 | 28.1 | **1.5** |
+| `gnrl_fid` | 41.0 | 9.9 | **3.5** |
+| `ORFwc` | 19.4 | 9.6 | **2.4** |
+| `grp_rate` | 17.9 | 10.5 | **3.8** |
+| `Tier2MinRd` | 12.7 | 11.2 | **5.1** |
+
+Two fixes, because the first is not enough:
+
+1. **Flags are kept 0/1** everywhere (`features._numeric_branch`). That bounds
+   them, but they still move a student 27 points.
+2. **The deployed model drops them** (`persist.deployable_spec`). In the study
+   a field went missing because of how the study was run; in a teacher's
+   spreadsheet a blank is a data-entry gap. Flags learned from the first say
+   nothing about the second.
+
+**Cost: none.** At 10 repeats median-only scores 0.663 ± 0.009 against
+0.662 ± 0.008 with flags — a difference of +0.000 [−0.008, +0.009] (F10 re-run
+with the fix). F8 replicates unchanged under the fixed pipeline: logistic
+0.662 ± 0.008, the same four differences clear noise and the same four do not.
+
+`tests/test_inference.py::test_one_blank_field_does_not_jump_the_queue` holds
+the line: blanking one student's age at a time must move them under 10 points
+on average.
+
+## F15 — The model can rank the Tier-2 students it was built for, not the whole cohort
+
+With the real bundle (`make model`: logistic, 0.663 ± 0.011 at 5 repeats),
+every student in the published table ranked through the T28 contract:
+
+| | Labelled students (training population) | Everyone else |
+|---|---|---|
+| Students | 946 | 5,857 |
+| Outside the training tier | 1.6% | **77.7%** |
+| No baseline Word ID | 0.0% | **100.0%** |
+| Any note (score on weak ground) | 1.6% | **100.0%** |
+| Inputs present, median | 22 of 22 | 16 of 22 |
+
+The Woodcock assessment was given only to the Tier-2 subsample, so the input the
+score leans on most (F12) is absent for **every** student outside it. For 86% of
+the cohort, a ranking would be the model guessing from weaker evidence, and
+`rank()` says so on every one of those rows.
+
+What this means for the product:
+
+- **The app ranks Tier-2 readers who have a baseline Woodcock score.** That is
+  the population the model was fit and evaluated on, and where 98.4% of scores
+  carry no caveat.
+- **It is not a universal screener.** Ranking a whole school would put 5,857
+  extrapolated scores next to 946 grounded ones in one queue, and nothing in a
+  sorted list would tell a reader which is which. The notes column does; the
+  app (T37) must show it, and the model card (T36) must state the scope.
+- **Extending it to all students is a data question, not a modelling one**: it
+  needs a baseline measure every student actually has.
