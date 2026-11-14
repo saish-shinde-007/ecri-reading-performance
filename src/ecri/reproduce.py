@@ -30,6 +30,15 @@ FORMAT = 1
 # "Agrees to 3 dp": within half a unit in the third decimal.
 TOLERANCE = 5e-4
 
+# Counts of students crossing a fixed cut, rather than continuous scores. They
+# are bit-exact on the recording CPU architecture, but on another one a tree
+# ensemble can resolve a near-tied split differently, move a score by a tree's
+# worth (1/500), and flip a student sitting near the cut: on x86-64 the forest's
+# at-risk recall moved by three such flips (6.7e-4) while every continuous
+# number held. They are gated on the recording architecture and reported
+# elsewhere; every conclusion the project draws rests on the continuous ones.
+THRESHOLDED = frozenset({"recall_at_risk"})
+
 CANONICAL: dict[str, Any] = {
     "target": "RMwidRS_target",
     "strategy": "school",
@@ -200,10 +209,18 @@ class Check:
     key: str
     expected: Any
     actual: Any
-    ok: bool
+    # Agrees within tolerance (or exactly, for non-floats).
+    within: bool
+    # False for a thresholded count on a different CPU architecture: a miss is
+    # reported, and does not fail the run.
+    gated: bool = True
+
+    @property
+    def ok(self) -> bool:
+        return self.within or not self.gated
 
     def line(self) -> str:
-        mark = "ok  " if self.ok else "FAIL"
+        mark = "ok  " if self.within else ("FAIL" if self.gated else "info")
         if isinstance(self.expected, float) and isinstance(self.actual, float):
             delta = self.actual - self.expected
             return f"  {mark} {self.key}: {self.expected:.6f} → {self.actual:.6f} ({delta:+.1e})"
@@ -211,9 +228,17 @@ class Check:
 
 
 def compare(
-    actual: dict[str, Any], expected: dict[str, Any], *, tolerance: float = TOLERANCE
+    actual: dict[str, Any],
+    expected: dict[str, Any],
+    *,
+    tolerance: float = TOLERANCE,
+    strict_counts: bool = True,
 ) -> tuple[list[Check], list[str]]:
-    """(checks, unrecorded keys). Floats within `tolerance`; everything else exact."""
+    """(checks, unrecorded keys). Floats within `tolerance`; everything else exact.
+
+    With strict_counts False, a THRESHOLDED key that disagrees is reported
+    (gated=False) instead of failing.
+    """
     if actual.get("config") != expected.get("config"):
         raise ReproductionError(
             "the canonical configuration differs from the recorded one, so the numbers "
@@ -233,9 +258,16 @@ def compare(
             ok = abs(float(found) - float(value)) <= tolerance
         else:
             ok = value == found
-        checks.append(Check(key, value, found, ok))
+        gated = strict_counts or key.rsplit(".", 1)[-1] not in THRESHOLDED
+        checks.append(Check(key, value, found, ok, gated))
     unrecorded = sorted(set(got) - set(want))
     return checks, unrecorded
+
+
+def same_architecture(actual: dict[str, Any], expected: dict[str, Any]) -> bool:
+    return actual.get("environment", {}).get("machine") == expected.get("environment", {}).get(
+        "machine"
+    )
 
 
 def load_expected(path: Path = EXPECTED_PATH) -> dict[str, Any]:

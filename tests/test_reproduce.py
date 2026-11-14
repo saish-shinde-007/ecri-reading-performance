@@ -118,3 +118,38 @@ def test_render_readme_touches_only_the_block(record):
 def test_render_readme_needs_its_markers(record):
     with pytest.raises(reproduce.ReproductionError, match="results:start"):
         reproduce.render_readme("no markers here", record)
+
+
+def test_a_thresholded_count_is_gated_on_the_recording_architecture(record):
+    actual = copy.deepcopy(record)
+    actual["model_comparison"]["models"]["random_forest"]["recall_at_risk"] += 6.7e-4
+    failed = [c for c in reproduce.compare(actual, record)[0] if not c.ok]
+    assert [c.key for c in failed] == ["model_comparison.models.random_forest.recall_at_risk"]
+
+
+def test_a_thresholded_count_is_reported_not_failed_across_architectures(record):
+    """CI on x86-64: three students near the cut flipped (6.7e-4); nothing else moved."""
+    actual = copy.deepcopy(record)
+    actual["model_comparison"]["models"]["random_forest"]["recall_at_risk"] += 6.7e-4
+    checks, _ = reproduce.compare(actual, record, strict_counts=False)
+    assert all(c.ok for c in checks)
+    reported = [c for c in checks if not c.gated and c.actual != c.expected]
+    assert [c.key for c in reported] == ["model_comparison.models.random_forest.recall_at_risk"]
+    assert reported[0].line().strip().startswith("info")
+
+
+def test_continuous_numbers_stay_gated_across_architectures(record):
+    actual = copy.deepcopy(record)
+    actual["model_comparison"]["models"]["random_forest"]["auc_mean"] += 6e-4
+    failed = [c for c in reproduce.compare(actual, record, strict_counts=False)[0] if not c.ok]
+    assert [c.key for c in failed] == ["model_comparison.models.random_forest.auc_mean"]
+
+
+def test_architecture_is_read_from_the_environment(record):
+    same = copy.deepcopy(record)
+    assert reproduce.same_architecture(same, record)
+    other = copy.deepcopy(record)
+    other["environment"]["machine"] = (
+        "x86_64" if record["environment"]["machine"] != "x86_64" else "arm64"
+    )
+    assert not reproduce.same_architecture(other, record)

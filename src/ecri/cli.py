@@ -599,8 +599,10 @@ def _cmd_reproduce(config: Config, args: argparse.Namespace) -> int:
         return 0
 
     expected = reproduce.load_expected()
-    checks, unrecorded = reproduce.compare(record, expected)
+    strict = reproduce.same_architecture(record, expected)
+    checks, unrecorded = reproduce.compare(record, expected, strict_counts=strict)
     failed = [c for c in checks if not c.ok]
+    gated = [c for c in checks if c.gated]
     env_then, env_now = expected.get("environment", {}), record["environment"]
     differs = {k: (env_then.get(k), v) for k, v in env_now.items() if env_then.get(k) != v}
     if differs:
@@ -608,9 +610,18 @@ def _cmd_reproduce(config: Config, args: argparse.Namespace) -> int:
             "environment differs from the recording run: "
             + ", ".join(f"{k} {a} → {b}" for k, (a, b) in differs.items())
         )
+    if not strict:
+        print(
+            "different CPU architecture from the recording run: thresholded counts "
+            f"({', '.join(sorted(reproduce.THRESHOLDED))}) are reported, not gated; "
+            "every continuous number is gated as usual"
+        )
+        for check in checks:
+            if not check.gated and not check.within:
+                print(check.line())
     if failed:
         print(
-            f"\nFAILED: {len(failed)} of {len(checks)} numbers moved by more than "
+            f"\nFAILED: {len(failed)} of {len(gated)} gated numbers moved by more than "
             f"{reproduce.TOLERANCE:g}:"
         )
         for check in failed:
@@ -619,13 +630,13 @@ def _cmd_reproduce(config: Config, args: argparse.Namespace) -> int:
         worst = max(
             (
                 abs(float(c.actual) - float(c.expected))
-                for c in checks
+                for c in gated
                 if isinstance(c.expected, float) and isinstance(c.actual, float)
             ),
             default=0.0,
         )
         print(
-            f"\nreproduced: all {len(checks)} numbers agree to 3 dp "
+            f"\nreproduced: all {len(gated)} gated numbers agree to 3 dp "
             f"(largest difference {worst:.1e})"
         )
     if unrecorded:
