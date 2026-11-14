@@ -349,3 +349,51 @@ Platt. Those are fitted and scored on the same out-of-fold predictions, so they
 are an upper bound — isotonic's 0.0000 gap is in-sample overfit, not a result —
 but the gap between raw and calibrated is small enough that the raw scores are
 usable as probabilities with a Platt step on top.
+
+## F12 — Five or six features carry everything; the rest is noise
+
+Permutation importance on held-out folds (5 folds × 3 repeats, school-disjoint),
+measured as the drop in ROC-AUC when one raw column is shuffled. `make importance`.
+
+| Feature | logistic | random forest |
+|---|---|---|
+| `RMwidRS` (baseline Word ID) | **0.1220 ± 0.0421** | **0.0856 ± 0.0289** |
+| `rcmistot` (classroom management rating) | 0.0296 ± 0.0339 | 0.0028 |
+| `RMwdaRS` (baseline Word Attack) | 0.0291 ± 0.0201 | 0.0135 ± 0.0074 |
+| `Tier2MinRd` (Tier-2 reading minutes) | 0.0190 ± 0.0190 | 0.0044 ± 0.0075 |
+| `NWFwrc` (nonsense-word recoding) | 0.0144 ± 0.0109 | 0.0207 ± 0.0155 |
+| `SAsrS` (Stanford sentence reading) | 0.0117 ± 0.0105 | 0.0019 |
+| `SpEd` | 0.0097 ± 0.0083 | 0.0061 ± 0.0036 |
+| `Age1b` | 0.0068 ± 0.0071 | 0.0074 ± 0.0060 |
+
+Above noise (mean > SD): **6 of 22** under logistic (`RMwidRS`, `RMwdaRS`,
+`NWFwrc`, `SAsrS`, `SpEd`, `Age1b`), **5 of 22** under random forest
+(`RMwidRS`, `NWFwrc`, `RMwdaRS`, `Age1b`, `SpEd`).
+
+Four things:
+
+**Baseline Word ID is not merely first, it is an order of magnitude ahead** —
+0.122 against 0.030 for the runner-up. Removing it costs more AUC than removing
+everything else put together. This is coherent with F1: the label is the gain in
+that exact measure, so its starting value sets the headroom.
+
+**Two unrelated model families agree.** Spearman ρ = 0.608 across all 22
+features, and their above-noise shortlists overlap on four of five
+(`RMwidRS`, `RMwdaRS`, `NWFwrc`, `SpEd`). Agreement between a linear model and a
+500-tree ensemble is the strongest evidence available here that these rankings
+reflect the data rather than one model's inductive bias.
+
+**`rcmistot` is the trap in this table.** It ranks second under logistic — and
+its SD (0.0339) exceeds its mean (0.0296), while the random forest puts it at
+0.0028, essentially nothing. Anyone reading the sorted column without the
+spread would report "classroom management quality is the second most important
+predictor of reading growth", which the data does not support. The figure draws
+error bars for exactly this reason.
+
+**The classroom and teacher block contributes almost nothing measurable.**
+`grp_rate`, `gnrl_fid`, `TKPctCrct`, `TYearsTeaching`, `Tier2_N` and `Tx` are
+all inside noise under both models. Note that this sits in tension with F7,
+where the full feature set beat the baseline-score-only model by +0.073 on Word
+ID — so the extra features do contribute in aggregate, just not in a way that
+survives attribution to any individual column. Both can be true: many weak,
+partly redundant signals.
