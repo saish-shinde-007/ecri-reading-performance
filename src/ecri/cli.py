@@ -449,7 +449,7 @@ def cmd_school(config: Config, args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_model(config: Config, args: argparse.Namespace) -> int:
+def _cmd_model(config: Config, args: argparse.Namespace) -> int:
     """Train, inspect or verify a saved model bundle."""
     import json
 
@@ -532,7 +532,7 @@ def cmd_model(config: Config, args: argparse.Namespace) -> int:
     raise SystemExit(f"unknown model command {args.model_command!r}")
 
 
-def cmd_rank(config: Config, args: argparse.Namespace) -> int:
+def _cmd_rank(config: Config, args: argparse.Namespace) -> int:
     """Rank students from a CSV, most at risk first."""
     from . import inference, persist
 
@@ -563,6 +563,35 @@ def cmd_rank(config: Config, args: argparse.Namespace) -> int:
         ranking.table.to_csv(args.out, index=False)
         print(f"wrote {args.out}")
     return 0
+
+
+def _user_facing(command):
+    """Report input and integrity problems as one line on stderr, exit 2.
+
+    These are mistakes a user can fix (a labelled file, a missing bundle), so
+    a traceback would be noise. Anything else still raises.
+    """
+
+    def run(config: Config, args: argparse.Namespace) -> int:
+        from . import inference, persist
+
+        try:
+            return command(config, args)
+        except (
+            inference.InputError,
+            split.LeakageError,
+            persist.IntegrityError,
+            FileNotFoundError,
+        ) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+
+    run.__doc__ = command.__doc__
+    return run
+
+
+cmd_model = _user_facing(_cmd_model)
+cmd_rank = _user_facing(_cmd_rank)
 
 
 COMMANDS = {

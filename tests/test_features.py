@@ -60,3 +60,12 @@ def test_all_missing_column_survives_imputation(split_data):
     X.loc[:, "ORFwc"] = np.nan
     pre = features.build_preprocessor(X)
     assert np.isfinite(pre.fit_transform(X)).all()
+
+
+def test_missingness_flags_stay_zero_or_one(split_data):
+    """F14: scaled, a flag set in 0.4% of rows became a 15-sigma input."""
+    pre = features.build_preprocessor(split_data.X_train)
+    out = pre.fit_transform(split_data.X_train)
+    flags = [i for i, n in enumerate(features.feature_names(pre)) if "missingindicator" in n]
+    assert flags
+    assert set(np.unique(out[:, flags])) <= {0.0, 1.0}

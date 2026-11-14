@@ -71,9 +71,12 @@ def _as_frame(records: Any) -> pd.DataFrame:
         return records.copy()
     if isinstance(records, Mapping):
         return pd.DataFrame([dict(records)])
-    if isinstance(records, Sequence) and not isinstance(records, str | bytes):
-        if all(isinstance(r, Mapping) for r in records):
-            return pd.DataFrame([dict(r) for r in records])
+    if (
+        isinstance(records, Sequence)
+        and not isinstance(records, str | bytes)
+        and all(isinstance(r, Mapping) for r in records)
+    ):
+        return pd.DataFrame([dict(r) for r in records])
     raise TypeError("records must be a DataFrame, a mapping, or a sequence of mappings")
 
 
@@ -216,9 +219,7 @@ def rank(
 
     X = pd.DataFrame(index=frame.index)
     for column in bundle.features:
-        X[column] = (
-            _coerce_numeric(frame[column], column) if column in frame.columns else np.nan
-        )
+        X[column] = _coerce_numeric(frame[column], column) if column in frame.columns else np.nan
     absent = [c for c in bundle.features if c not in frame.columns]
     if absent:
         warnings.append(
