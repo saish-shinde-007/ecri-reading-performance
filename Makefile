@@ -2,9 +2,9 @@
 
 PY := .venv/bin/python
 
+# Exactly the versions in uv.lock; --locked fails if pyproject and the lock disagree.
 install:
-	uv venv --python 3.12 .venv
-	uv pip install --python $(PY) -e ".[dev]"
+	uv sync --locked --extra dev
 
 data:
 	@mkdir -p data/raw

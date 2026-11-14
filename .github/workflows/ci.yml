@@ -33,9 +33,11 @@ jobs:
         # setup-uv's python-version already built a venv at the right version
         # and exported VIRTUAL_ENV; putting its bin on GITHUB_PATH makes every
         # later step resolve ruff/pytest/ecri from it.
+        # From uv.lock, exactly. --locked fails the job if pyproject.toml changed
+        # without re-locking, so the CI environment can never drift silently.
         run: |
           echo "$VIRTUAL_ENV/bin" >> "$GITHUB_PATH"
-          uv pip install -e ".[dev]"
+          uv sync --locked --extra dev
 
       - name: Confirm the interpreter matches the matrix
         run: python -c "import sys; assert sys.version.startswith('${{ matrix.python-version }}'), sys.version; print(sys.version)"
