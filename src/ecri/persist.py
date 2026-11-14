@@ -23,7 +23,7 @@ import hashlib
 import json
 import platform
 import subprocess
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -35,6 +35,7 @@ import sklearn
 from sklearn.pipeline import Pipeline
 
 from . import __version__, calibrate, datagen, evaluate, paths, schema, split
+from .features import PreprocessorConfig
 from .metrics import evaluate as score_metrics
 from .models import zoo
 
@@ -174,6 +175,31 @@ def _population(frame: pd.DataFrame, target: str, features: list[str]) -> dict[s
     }
 
 
+def deployable_spec(model: str) -> zoo.ModelSpec:
+    """The registry model with missingness flags switched off.
+
+    In the study a field went missing because of how the study was run; in a
+    teacher's spreadsheet a blank is a data-entry gap. Flags learned from the
+    first say nothing about the second, and at 10 repeats they add +0.000 AUC
+    (F10, F14), so the model that ranks real students does not use them.
+    """
+    spec = zoo.BY_NAME[model]
+    if not spec.preprocessor.add_indicator:
+        return spec
+    return zoo.variant(
+        model, model, replace(spec.preprocessor, add_indicator=False), spec.description
+    )
+
+
+def _spec_from_metadata(meta: dict[str, Any]) -> zoo.ModelSpec:
+    name = meta["model"]["name"]
+    config = PreprocessorConfig(**meta["model"]["preprocessor"])
+    base = zoo.BY_NAME[name]
+    if config == base.preprocessor:
+        return base
+    return zoo.variant(name, name, config, base.description)
+
+
 def train_bundle(
     frame: pd.DataFrame,
     target: str,
@@ -192,19 +218,19 @@ def train_bundle(
     the calibrator learns from cross-validated predictions, and the final model
     is fitted on all the data.
     """
-    X, y, _ = split.features_and_target(frame, target)
-    spec = zoo.BY_NAME[model]
+    X, y, groups = split.features_and_target(frame, target)
+    spec = deployable_spec(model)
     features = zoo.columns_for(spec, X)
 
-    results, _ = evaluate.run_models(
-        frame, target, [model], strategy=strategy, n_folds=n_folds, repeats=repeats, seed=seed
+    plan = evaluate.make_fold_plan(
+        X, y, groups, strategy=strategy, n_folds=n_folds, repeats=repeats, seed=seed
     )
-    cv = results[model]
+    cv = evaluate.cross_validate(X, y, plan, spec, seed=seed)
     oof = cv.mean_scores
     calibrator = calibrate.fit_platt(cv.y_true, oof)
     calibrated = calibrate.apply_platt(calibrator, oof)
 
-    pipeline = zoo.build(model, X[features], seed=seed)
+    pipeline = zoo.build_from_spec(spec, X[features], seed=seed)
     pipeline.fit(X[features], y)
 
     recommended = calibrate.choose_threshold(
@@ -215,7 +241,13 @@ def train_bundle(
 
     metadata: dict[str, Any] = {
         "format_version": FORMAT_VERSION,
-        "model": {"name": model, "description": spec.description, "family": spec.family},
+        "model": {
+            "name": model,
+            "description": spec.description,
+            "family": spec.family,
+            "preprocessor": asdict(spec.preprocessor),
+            "preprocessor_note": "missingness flags off for deployment (F14)",
+        },
         "target": target,
         "features": features,
         "created_utc": datetime.now(UTC).isoformat(timespec="seconds"),
@@ -398,13 +430,15 @@ def reproduce_cv(bundle: ModelBundle, frame: pd.DataFrame) -> float:
             "score cannot be reproduced from it"
         )
     ev = bundle.metadata["evaluation"]
-    results, _ = evaluate.run_models(
-        frame,
-        bundle.target,
-        [bundle.name],
+    X, y, groups = split.features_and_target(frame, bundle.target)
+    plan = evaluate.make_fold_plan(
+        X,
+        y,
+        groups,
         strategy=ev["strategy"],
         n_folds=ev["n_folds"],
         repeats=ev["repeats"],
         seed=ev["seed"],
     )
-    return results[bundle.name].mean()
+    spec = _spec_from_metadata(bundle.metadata)
+    return evaluate.cross_validate(X, y, plan, spec, seed=ev["seed"]).mean()
