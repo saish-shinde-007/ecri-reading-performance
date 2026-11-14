@@ -1,4 +1,4 @@
-.PHONY: install data synth check eda baseline cv impute importance calibrate school test lint verify all clean
+.PHONY: install data synth check eda baseline cv impute importance calibrate school model rank-demo test lint verify all clean
 
 PY := .venv/bin/python
 
@@ -40,6 +40,15 @@ calibrate:
 
 school:
 	$(PY) -m ecri.cli school --repeats 10
+
+# T27/T28. `make model` writes models/logistic-RMwidRS_target/, which the app loads.
+model:
+	$(PY) -m ecri.cli model train --repeats 5
+	$(PY) -m ecri.cli model verify
+
+rank-demo: model
+	$(PY) -m ecri.cli synth --features-only --rows 300
+	$(PY) -m ecri.cli rank data/interim/synthetic_rank_input.csv --budget 20
 
 test:
 	$(PY) -m pytest --cov --cov-report=term-missing --cov-fail-under=90
