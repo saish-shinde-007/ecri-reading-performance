@@ -525,3 +525,29 @@ What this means for the product:
   app (T37) must show it, and the model card (T36) must state the scope.
 - **Extending it to all students is a data question, not a modelling one**: it
   needs a baseline measure every student actually has.
+
+## F16 — The results reproduce bit-exactly on ARM; on x86-64 one count moves by three students
+
+T39 re-derived 85 headline numbers from fresh clones — the label rule (F1),
+the nine-model comparison with every interval and verdict at 10 repeats (F8),
+and the deployed model's AUC (T27) — and compared them with the committed
+record.
+
+- **M4 and M1 laptop (arm64):** all 85 identical to the last stored digit,
+  across different chips, core counts and Python patch versions.
+- **GitHub Actions (x86-64 Linux):** 84 of 85 within 5e-4. The random forest's
+  at-risk recall moved by +6.7e-4, which is three students crossing the 0.5
+  cut out of 4,470 student-repeats.
+
+The mechanism is in tree construction. When two candidate splits nearly tie,
+the two architectures can resolve the tie differently, and a changed tree
+moves a score by up to 1/500. Twenty-nine at-risk student-repeats sit within
+0.001 of the cut. AUC, which depends only on rank order, held to 3 dp along
+with every other continuous number.
+
+What follows for the project: **no conclusion depends on the platform.** A
+thresholded count does, slightly, which is one more reason the product ranks
+students instead of flagging them (F11). A student whose score sits within a
+tree's worth of a fixed cut is not meaningfully on either side of it. The
+reproduction gate checks thresholded counts strictly on the recording
+architecture and reports them elsewhere (docs/reproducibility.md §5).

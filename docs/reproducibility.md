@@ -99,6 +99,7 @@ It compares each value with `results/expected.json`, the committed record:
 | a "clears noise" verdict flips | **fail**, even if the numbers stay close |
 | a recorded number is missing | **fail** |
 | a number not in the record appears | reported, not failed |
+| a thresholded count (at-risk recall) moves, on a **different CPU architecture** from the record | reported, not failed (§5) |
 | the canonical configuration changed | refused: the numbers aren't comparable |
 | the data differs from the pins | refused before anything runs |
 
@@ -114,8 +115,57 @@ intervals were 0.001 stale.
 
 ## 5. Where it has been reproduced
 
-<!-- filled from the T39 runs -->
+Each run is a fresh `git clone`, then `make install`, `make data`, `make
+release-check` and every target of `make all`. The record was made on the M4.
+
+| Machine | CPU | Python | Gated numbers | Largest difference |
+|---|---|---|---|---|
+| Compute box (M4, 12 cores) | arm64, macOS | 3.12.3 | 85 of 85 agree | **0.0** |
+| Laptop (M1 Air, 8 cores) | arm64, macOS | 3.12.9 | 85 of 85 agree | **0.0** |
+| CI runner (GitHub Actions) | x86-64, Linux | 3.12 | 84 of 85 agree, then 84 of 84 under the rule below | ≤ 5e-4 |
+
+**On ARM it is bit-exact.** The laptop and the M4 differ in chip, core count
+and Python patch version, yet every recorded number matches to the last
+stored digit.
+
+**On x86-64 one number moved:** the random forest's at-risk recall, by
++6.7e-4. Everything continuous held: every AUC, SD, average precision and
+Brier score, and every paired interval and verdict. The cause is how the
+forest gets built, not how it predicts:
+
+- Tree construction picks the best split by comparing impurity
+  improvements. When two candidate splits nearly tie, the different rounding
+  of intermediate sums on x86-64 and on ARM can pick different ones. A
+  changed tree moves a student's score by up to 1/500, one tree's worth.
+- At-risk recall is a count of students below a fixed cut of 0.5. On the
+  real data, 29 at-risk student-repeats have a forest score within 0.001 of
+  that cut, and 145 within 0.005.
+- One flip moves the 10-repeat recall by 0.000224. The observed +6.7e-4 is
+  three flips.
+
+AUC barely notices, because it depends on rank order, not on which side of a
+cut a score lands. So **thresholded counts are gated on the architecture the
+record was made on**, where they are bit-exact, and **reported elsewhere**.
+Every conclusion the project draws rests on the continuous numbers, and those
+are gated everywhere. To make the record on x86-64 instead, re-record there
+with `--write`.
 
 ## 6. How long it takes
 
-<!-- filled from the T39 runs -->
+From a fresh clone, uv's package cache already warm:
+
+| Step | Laptop (M1, 8 cores) | M4 (12 cores) |
+|---|---|---|
+| `make install` | 3 s | 1 s |
+| `make data` | under 1 s | 1 s |
+| `make release-check` (lint, 260 tests, checksums, label rule, README check, reproduction) | 414 s | 230 s |
+| `make all` | **331 s** | **202 s** |
+| &nbsp;&nbsp;check · eda · baseline | 6 · 6 · 8 s | 1 · 2 · 2 s |
+| &nbsp;&nbsp;cv (9 models, 5 repeats) | 87 s | 64 s |
+| &nbsp;&nbsp;impute · calibrate · school | 30 · 7 · 24 s | 18 · 3 · 13 s |
+| &nbsp;&nbsp;importance (logistic + random forest) | 140 s | 96 s |
+| &nbsp;&nbsp;model (train, save, verify) | 23 s | 3 s |
+
+`make all` regenerates all seven reports in `reports/`, seven figures, and the
+saved model. The reproduction step on its own took 108 s on the M4 and about
+3 minutes on a GitHub Actions runner.
