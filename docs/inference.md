@@ -170,7 +170,9 @@ The checklist from #10, against this contract:
 - [ ] Never show a bare yes/no. If a threshold appears at all, show
       `operating_points.recommended_cost_ratio` beside it.
 - [ ] Link to `docs/model_card.md`.
-- [ ] For a quick input file: `ecri synth --features-only` writes one.
+- [ ] For a quick input file: `ecri synth --features-only` writes one, drawn
+      from in-scope students (a baseline Woodcock score) so the queue looks the
+      way it should in real use.
 
 ## 5. The metadata sidecar: `model.json`
 

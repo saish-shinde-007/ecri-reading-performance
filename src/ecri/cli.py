@@ -31,11 +31,18 @@ def cmd_synth(config: Config, args: argparse.Namespace) -> int:
     paths.ensure_dirs()
     frame = datagen.generate_frame(n_rows=args.rows or config.synthetic_rows, seed=config.seed)
     if args.features_only:
-        # A valid `ecri rank` input: identifier plus model inputs, no outcomes.
+        # A valid `ecri rank` input — identifier plus model inputs, no outcomes —
+        # drawn from the students the model is for: those with a baseline on
+        # the target's own measure. Everyone else is out of scope (F15).
+        key = schema.BASELINE_OF_TARGET[config.target]
+        in_scope = frame[frame[key].notna()]
         columns = [schema.STUDENT_ID] + [c for c in schema.FEATURES if c in frame.columns]
         out = paths.INTERIM / "synthetic_rank_input.csv"
-        frame[columns].to_csv(out, index=False)
-        print(f"wrote {paths.rel(out)}: {len(frame):,} students x {len(columns) - 1} inputs")
+        in_scope[columns].to_csv(out, index=False)
+        print(
+            f"wrote {paths.rel(out)}: {len(in_scope):,} students with a baseline {key} "
+            f"(who the model is for, F15) x {len(columns) - 1} inputs"
+        )
         return 0
     out = paths.INTERIM / "synthetic_ECRIDataSet.csv"
     frame.to_csv(out, index=False)
