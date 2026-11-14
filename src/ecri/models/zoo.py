@@ -28,6 +28,9 @@ class ModelSpec:
     columns: tuple[str, ...] | None = None
     # Third-party module this model needs; the spec is hidden when absent.
     requires: str | None = None
+    # Accepts raw NaN, so imputation can be skipped entirely. Explicit rather
+    # than inferred from `family`: not every tree in the registry is fed NaN.
+    native_nan: bool = False
 
     @property
     def available(self) -> bool:
@@ -121,6 +124,7 @@ SPECS: tuple[ModelSpec, ...] = (
             early_stopping=False,
             random_state=seed,
         ),
+        native_nan=True,
     ),
     ModelSpec(
         "hgb_native_nan",
@@ -135,6 +139,7 @@ SPECS: tuple[ModelSpec, ...] = (
             random_state=seed,
         ),
         preprocessor=NATIVE_NAN,
+        native_nan=True,
     ),
     ModelSpec(
         "mlp",
@@ -156,6 +161,7 @@ SPECS: tuple[ModelSpec, ...] = (
         _xgboost,
         preprocessor=NATIVE_NAN,
         requires="xgboost",
+        native_nan=True,
     ),
     ModelSpec(
         "lightgbm",
@@ -164,6 +170,7 @@ SPECS: tuple[ModelSpec, ...] = (
         _lightgbm,
         preprocessor=NATIVE_NAN,
         requires="lightgbm",
+        native_nan=True,
     ),
 )
 
@@ -223,4 +230,5 @@ def variant(base: str, name: str, preprocessor: PreprocessorConfig, description:
         preprocessor=preprocessor,
         columns=spec.columns,
         requires=spec.requires,
+        native_nan=spec.native_nan,
     )

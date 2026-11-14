@@ -258,6 +258,11 @@ Consequences:
    rows 1–4 are one statistical tie. A write-up that calls random forest
    "second best" is reading noise as order.
 
+**Replicated at 10 repeats** (run on the M4, identical library versions):
+logistic 0.662 ± 0.008, random forest 0.652 ± 0.005, hist GB 0.644 ± 0.008,
+MLP 0.617 ± 0.028. The same four differences clear noise and the same four do
+not, so the conclusion does not depend on the repeat count.
+
 ## F9 — The pooled-per-repeat AUC is four times more stable than a single split
 
 Single school-split, 12 draws (F7): logistic 0.657 ± **0.037**.
@@ -397,3 +402,44 @@ where the full feature set beat the baseline-score-only model by +0.073 on Word
 ID — so the extra features do contribute in aggregate, just not in a way that
 survives attribution to any individual column. Both can be true: many weak,
 partly redundant signals.
+
+## F13 — School context: a borderline gain from poverty, nothing from race
+
+`MetaData.csv` gives each school's free/reduced-price-lunch rate and racial
+composition. Three feature sets under logistic regression on identical folds.
+`make school`.
+
+| Feature set | 5 repeats | **10 repeats** |
+|---|---|---|
+| student + classroom + teacher only | 0.662 ± 0.010 | 0.662 ± 0.008 |
+| + school free-lunch rate | 0.673 ± 0.008 | **0.672 ± 0.007** |
+| + free-lunch + racial composition | 0.664 ± 0.013 | 0.664 ± 0.010 |
+
+| Paired difference | 5 repeats | **10 repeats** |
+|---|---|---|
+| + free-lunch | +0.012 [+0.001, +0.023] — clears | **+0.009 [−0.002, +0.021] — within noise** |
+| + composition | +0.003 [−0.015, +0.022] — within | +0.003 [−0.015, +0.022] — within |
+
+**The free-lunch result does not survive replication, and that is the reason
+it is recorded here rather than shipped.** At 5 repeats the interval cleared
+zero — and cleared it in 9 of 10 bootstrap seeds, which looked solid. At 10
+repeats the interval crosses zero. The point estimate barely moved (+0.012 →
++0.009); what moved is the lower bound, which was sitting within 0.001 of zero
+all along. A result that flips with the repeat count is not a result.
+
+So:
+
+- **Free-lunch rate stays out of the default feature set.** The join exists, is
+  tested, and is one flag away (`join_school_meta`). It is a candidate worth
+  re-testing once the paper replication (T33) fixes the evaluation protocol,
+  not a finding to report.
+- **Racial composition stays out permanently.** It adds nothing — on top of
+  free-lunch rate it *costs* 0.008 AUC — and a model that routes children to
+  reading support must not learn to allocate it by a school's racial make-up.
+  Here the ethical answer and the empirical answer coincide, which makes the
+  decision easy; `schema.SCHOOL_COMPOSITION` is kept separate and opt-in so
+  that it stays easy.
+
+The general lesson for the rest of phase 2: **re-run anything borderline at a
+higher repeat count before writing it down.** A lower bound within 0.001 of
+zero is a coin flip, whatever the bootstrap says.

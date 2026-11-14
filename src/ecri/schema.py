@@ -56,8 +56,25 @@ CONTEXT_NUMERIC = (
     "TYearsTeaching",  # teacher years of experience
 )
 
+# School-level context from MetaData.csv, joined on SchlID (T25). Present only
+# when the join has run, so everything downstream intersects rather than assumes.
+SCHOOL_POVERTY = ("FreeLunch",)  # share on free or reduced-price lunch
+# Racial composition. Kept SEPARATE and off by default: a tool that routes
+# children to support must not learn to allocate it by a school's demographics.
+# See docs/findings.md F13 for the measurement that settled this.
+SCHOOL_COMPOSITION = (
+    "AmericanIndian",
+    "Asian",
+    "Hispanic",
+    "AfricanAmerican",
+    "White",
+    "NativeHawaiian",
+    "MoreRaces",
+)
+SCHOOL_NUMERIC = SCHOOL_POVERTY + SCHOOL_COMPOSITION
+
 CATEGORICAL_FEATURES = STUDENT_CATEGORICAL
-NUMERIC_FEATURES = STUDENT_NUMERIC + ASSESSMENT_NUMERIC + CONTEXT_NUMERIC
+NUMERIC_FEATURES = STUDENT_NUMERIC + ASSESSMENT_NUMERIC + CONTEXT_NUMERIC + SCHOOL_NUMERIC
 FEATURES = CATEGORICAL_FEATURES + NUMERIC_FEATURES
 
 # Single-valued in the analysis table (Keep=1, Time=1.0, t=0.0 throughout), so

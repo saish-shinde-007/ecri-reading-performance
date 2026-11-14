@@ -392,6 +392,56 @@ def cmd_calibrate(config: Config, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_school(config: Config, args: argparse.Namespace) -> int:
+    """Does school-level context earn its place in the feature set?"""
+    frame, dataset = _prepared(config)
+    if loader.load_school_meta() is None:
+        print("MetaData.csv not in data/raw — nothing to join. See docs/data.md.")
+        return 0
+
+    results, _ = evaluate.compare_school_context(
+        frame,
+        config.target,
+        base=args.base,
+        strategy=config.split.strategy,
+        n_folds=config.split.n_folds,
+        repeats=args.repeats,
+        seed=config.seed,
+    )
+    table = evaluate.results_table(results)
+    print(f"\n{table.round(3).to_string()}")
+
+    reference = "no_school_context"
+    comparisons = evaluate.compare_to_reference(
+        results, reference, n_boot=args.bootstrap, seed=config.seed
+    )
+    print(f"\npaired against `{reference}`:")
+    for comparison in comparisons:
+        print(f"  {comparison.summary()}")
+
+    poverty = results["plus_freelunch"].mean()
+    composition = results["plus_composition"].mean()
+    print(
+        f"\nracial composition on top of free-lunch rate: "
+        f"{composition - poverty:+.3f} AUC — "
+        + ("keep it out." if composition <= poverty else "revisit, but see F13.")
+    )
+
+    paths.ensure_dirs()
+    out = paths.REPORTS / "school_context.md"
+    out.write_text(
+        f"# School context\n\nSource: **{dataset.source}** data. Estimator: "
+        f"`{args.base}`. Target: `{config.target}`. {config.split.n_folds} folds x "
+        f"{args.repeats} repeats, `{config.split.strategy}`-split.\n\n"
+        + to_markdown(table.round(3))
+        + f"\n\n## Paired against `{reference}`\n\n"
+        + "\n".join(f"- {c.summary()}" for c in comparisons)
+        + "\n"
+    )
+    print(f"wrote {paths.rel(out)}")
+    return 0
+
+
 COMMANDS = {
     "synth": cmd_synth,
     "check": cmd_check,
@@ -401,6 +451,7 @@ COMMANDS = {
     "impute": cmd_impute,
     "importance": cmd_importance,
     "calibrate": cmd_calibrate,
+    "school": cmd_school,
 }
 
 
@@ -444,6 +495,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=calibrate.DEFAULT_COST_RATIO,
         help="cost of missing an at-risk child vs a false flag",
     )
+
+    p_sch = sub.add_parser("school", help="does school-level context help?")
+    p_sch.add_argument("--base", default="logistic")
+    p_sch.add_argument("--repeats", type=int, default=5)
+    p_sch.add_argument("--bootstrap", type=int, default=2000)
     return parser
 
 

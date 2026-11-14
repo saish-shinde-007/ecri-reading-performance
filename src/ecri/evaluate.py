@@ -101,10 +101,16 @@ def cross_validate(
     model: str | zoo.ModelSpec,
     *,
     seed: int = 20260101,
+    label: str | None = None,
 ) -> CVResult:
-    """Fit a model on every fold of every repeat and keep out-of-fold scores."""
+    """Fit a model on every fold of every repeat and keep out-of-fold scores.
+
+    `label` renames the result. Needed whenever the same estimator is run over
+    different FEATURE SETS — without it a feature-set comparison prints
+    "logistic - logistic" and the report is unreadable.
+    """
     spec = zoo.BY_NAME[model] if isinstance(model, str) else model
-    name = spec.name
+    name = label or spec.name
     columns = zoo.columns_for(spec, X)
     y_true = y.to_numpy(int)
     oof = np.full((plan.n_repeats, len(X)), np.nan)
@@ -202,7 +208,7 @@ def compare_imputation(
         for name, (kwargs, description) in IMPUTATION_VARIANTS.items()
     ]
     # Only a native-NaN estimator can skip imputation entirely.
-    if zoo.BY_NAME[base].family == "tree":
+    if zoo.BY_NAME[base].native_nan:
         specs.append(
             zoo.variant(base, "native_nan", NATIVE_NAN, "no imputation, NaN passed through")
         )
@@ -282,6 +288,43 @@ def paired_bootstrap(
     if observed < 0:
         observed, low, high = -observed, -high, -low
     return Comparison(better, worse, observed, float(low), float(high))
+
+
+# Feature-set variants compared in T25.
+SCHOOL_CONTEXT_VARIANTS: dict[str, tuple[bool | None, str]] = {
+    "no_school_context": (None, "student, classroom and teacher features only"),
+    "plus_freelunch": (False, "adds the school's free/reduced-price-lunch rate"),
+    "plus_composition": (True, "also adds the school's racial composition"),
+}
+
+
+def compare_school_context(
+    frame: pd.DataFrame,
+    target: str,
+    *,
+    base: str = "logistic",
+    strategy: str = "school",
+    n_folds: int = 5,
+    repeats: int = 5,
+    seed: int = 20260101,
+) -> tuple[dict[str, CVResult], FoldPlan]:
+    """Run one estimator over three feature sets on identical folds."""
+    from .loader import join_school_meta
+
+    X, y, groups = split.features_and_target(frame, target)
+    plan = make_fold_plan(
+        X, y, groups, strategy=strategy, n_folds=n_folds, repeats=repeats, seed=seed
+    )
+    results: dict[str, CVResult] = {}
+    for label, (composition, _) in SCHOOL_CONTEXT_VARIANTS.items():
+        variant_frame = (
+            frame
+            if composition is None
+            else join_school_meta(frame, include_composition=composition)[0]
+        )
+        Xv, yv, _ = split.features_and_target(variant_frame, target)
+        results[label] = cross_validate(Xv, yv, plan, base, seed=seed, label=label)
+    return results, plan
 
 
 def compare_to_reference(

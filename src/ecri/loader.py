@@ -95,3 +95,31 @@ def load_school_meta() -> pd.DataFrame | None:
         return None
     meta = pd.read_csv(paths.SCHOOL_META_CSV)
     return meta.rename(columns={"SchoolID": schema.SCHOOL_ID})
+
+
+def join_school_meta(
+    frame: pd.DataFrame, *, include_composition: bool = False, meta: pd.DataFrame | None = None
+) -> tuple[pd.DataFrame, list[str]]:
+    """Left-join school context onto a student frame. Returns (frame, added).
+
+    Composition columns are opt-in: allocating reading support by a school's
+    racial make-up is not a thing to do by default, whatever it does to AUC.
+    """
+    meta = meta if meta is not None else load_school_meta()
+    if meta is None or schema.SCHOOL_ID not in frame.columns:
+        return frame, []
+
+    wanted = list(schema.SCHOOL_POVERTY)
+    if include_composition:
+        wanted += list(schema.SCHOOL_COMPOSITION)
+    columns = [c for c in wanted if c in meta.columns]
+    if not columns:
+        return frame, []
+
+    joined = frame.merge(
+        meta[[schema.SCHOOL_ID, *columns]].drop_duplicates(subset=[schema.SCHOOL_ID]),
+        on=schema.SCHOOL_ID,
+        how="left",
+    )
+    joined.index = frame.index
+    return joined, columns
