@@ -35,37 +35,51 @@ Full write-up, with five further measured findings: **[docs/findings.md](docs/fi
 
 ## Results so far
 
-Logistic regression, ROC-AUC on held-out data, mean ± SD over 12 random splits:
+Nine models, 5-fold school-disjoint CV repeated 10 times, ROC-AUC on
+out-of-fold predictions, Word Identification target:
 
-| Model | Word ID, school-split | Word ID, student-split | Word Attack, school-split |
-|---|---|---|---|
-| **Logistic regression, all features** | **0.657 ± 0.037** | 0.692 ± 0.034 | 0.611 ± 0.037 |
-| Logistic, baseline Woodcock score only | 0.602 ± 0.029 | 0.592 ± 0.028 | 0.507 ± 0.049 |
-| Decision tree, depth 3 | 0.593 ± 0.021 | 0.613 ± 0.027 | 0.523 ± 0.021 |
-| Majority class | 0.500 | 0.500 | 0.500 |
+| Model | AUC | vs logistic, 95% CI |
+|---|---|---|
+| **Logistic regression** | **0.662 ± 0.008** | — |
+| Random forest | 0.652 ± 0.005 | −0.009 [−0.040, +0.021] · within noise |
+| Hist gradient boosting | 0.644 ± 0.008 | −0.008 [−0.038, +0.024] · within noise |
+| Hist GB, native NaN | 0.641 ± 0.010 | −0.010 [−0.041, +0.021] · within noise |
+| MLP (32-16) | 0.617 ± 0.028 | −0.006 [−0.027, +0.015] · within noise |
+| Decision tree, depth 3 | 0.600 ± 0.014 | −0.049 [−0.086, −0.013] · **worse** |
+| Logistic, baseline score only | 0.593 ± 0.002 | −0.073 [−0.110, −0.037] · **worse** |
+| Majority class | 0.500 | −0.167 · **worse** |
 
-Read these carefully:
+Intervals are a paired bootstrap over students with the folds held fixed. What
+they say:
 
-- **The spread is the result.** One split gave 0.703 — the top of a 0.594–0.720
-  range. With ~200 test rows the SD is ~0.04, so single numbers mean nothing
-  here, and `--repeats` exists for that reason.
-- **0.66 is a real result, not a weak one.** The strongest single feature
-  correlates at |r| = 0.20. Anything near 0.9 on this data is a leak, and
-  `metrics.leakage_warning()` says so at 0.85.
-- **School-split is the honest number.** Classroom and teacher features are
-  constant within a classroom, so a student-level split puts the same values on
-  both sides. A quoted AUC without its split strategy is not interpretable.
-- On **Word Attack** the baseline score alone is at chance (0.507) while the
-  full feature set reaches 0.611 — the signal there is entirely in the
-  classroom, teacher and other-assessment features.
+- **Nothing beats logistic regression.** Every flexible model is inside the
+  noise band; the MLP buys 3.5× the variance for nothing. Logistic is the model
+  to ship — most accurate, most stable, and explainable to a teacher. (F8)
+- **0.66 is a real result.** The best single feature correlates at |r| = 0.20,
+  and the multivariate model beats the single-feature one decisively (+0.073).
+  Anything near 0.9 here is a leak. (F3, F7)
+- **The useful output is a ranking, not a flag.** At a 3:1 cost of missing a
+  struggling reader, the cost-optimal threshold flags **95%** of students.
+  With 47% falling short and a 0.66 ranker, a yes/no screen degenerates into
+  screening everyone; ordering a fixed support budget is where the model earns
+  its keep. (F11)
+- **Five or six features carry it.** Baseline Word ID is an order of magnitude
+  ahead of everything else. (F12)
+- **Imputation choice doesn't matter** (F10), and **school racial composition
+  is excluded** — it adds nothing, and a support-allocation tool must not use
+  it. (F13)
+
+Every finding, with the numbers behind it: **[docs/findings.md](docs/findings.md)**.
 
 ## Quick start
 
 ```bash
 make install     # uv venv + editable install
 make check       # validate the contract, run the leakage guard
-make eda         # reports/eda.md + 4 figures
-make baseline    # baselines over 8 school-splits
+make eda         # reports/eda.md + figures
+make cv          # 9-model comparison, repeated CV, paired bootstrap
+make calibrate   # reliability curves + cost-justified threshold
+make importance  # permutation importance, two model families
 ```
 
 No data needed — everything falls back to a synthetic generator built from the
@@ -127,10 +141,14 @@ label lookup. The guard rejects them.
 
 ## Project status
 
-**Phase 1 complete** — 16 tickets, 124 tests, 96% coverage, CI on 3.11/3.12/3.13.
-**Phase 2** — 22 tickets planned in **[PLAN.md](PLAN.md)**, starting with the
-repeated-CV harness, because every model comparison after this point is noise
-without it.
+**60% shipped.** Phase 1 (foundation, 40%) and phase 2a (evaluation and
+models, 20%) — 26 tickets, 184 tests, 94% coverage, CI on Python 3.11–3.13.
+
+**40% remaining**, split **30% Sarvesh / 10% us** by effort, in
+**[PLAN.md](PLAN.md)**: persistence and the inference contract first (they
+gate the app), then boosting, regression on raw gain, the paper's MaskMLP,
+SHAP, fairness slices, paper replication, the model card, the Streamlit app,
+and the final report.
 
 ## Data and licence
 

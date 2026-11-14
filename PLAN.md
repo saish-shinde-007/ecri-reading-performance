@@ -1,193 +1,209 @@
 # Plan
 
-38 tickets. **16 shipped (phase 1, ~40%)**, 22 remaining (phase 2, ~60%).
-One ticket is one commit. Every ticket below carries a definition of done, so
+39 tickets. **60% shipped** (phase 1 + phase 2a). The remaining **40% is
+split 30% Sarvesh / 10% us**, weighted by effort rather than ticket count.
+
+| Slice | Tickets | Share | Status |
+|---|---|---|---|
+| Phase 1 — foundation | T01–T18 | 40% | ✅ shipped |
+| Phase 2a — evaluation and models | T19–T26 | 20% | ✅ shipped (PR) |
+| Phase 2b — **Sarvesh** | T29–T38 | 30% | open |
+| Phase 2b — **us** | T27, T28, T39 | 10% | open |
+
+Each ticket is one commit (or one small PR) with a definition of done, so
 "finished" is a check rather than an opinion.
 
-Tickets are numbered by commit, not by plan order — T14 was folded into T13
-(the Markdown renderer belonged with the report that needed it).
-
 ---
 
-## Phase 1 — shipped
+## Shipped
 
-| # | Ticket | Done |
+### Phase 1 — foundation (40%)
+
+| # | Ticket |
+|---|---|
+| T01 | Scaffold: packaging, licence, make targets, data layout |
+| T02 | Docs: proposal, file inventory, data licence |
+| T03 | Paths and typed config |
+| T04 | Data contract for the 30 published columns |
+| T05 | **Derive the label definition; verify it reproduces exactly** |
+| T06 | Synthetic generator matching the real structure |
+| T07 | Loader with a validating contract check |
+| T08 | Cleaning and modelling-frame assembly |
+| T09 | School-disjoint splits with an enforcing leakage guard |
+| T10 | Feature pipeline with missingness indicators |
+| T11 | Classification metrics, at-risk-recall focused |
+| T12 | Baselines, and the bar they set |
+| T13 | EDA + Markdown rendering (T14 folded in) |
+| T15 | CLI: check, synth, eda, baseline |
+| T16 | Test suite, CI, three bug fixes |
+| T17 | README and plan |
+| T18 | CI fixes: venv per matrix leg, interpreter assertion, errexit |
+
+### Phase 2a — evaluation and models (20%)
+
+| # | Ticket | Result |
 |---|---|---|
-| T01 | Scaffold: packaging, licence, make targets, data layout | ✅ |
-| T02 | Docs: proposal, file inventory, data licence | ✅ |
-| T03 | Paths and typed config | ✅ |
-| T04 | Data contract for the 30 published columns | ✅ |
-| T05 | **Derive the label definition; verify it reproduces exactly** | ✅ |
-| T06 | Synthetic generator matching the real structure | ✅ |
-| T07 | Loader with a validating contract check | ✅ |
-| T08 | Cleaning and modelling-frame assembly | ✅ |
-| T09 | School-disjoint splits with an enforcing leakage guard | ✅ |
-| T10 | Feature pipeline with missingness indicators | ✅ |
-| T11 | Classification metrics, at-risk-recall focused | ✅ |
-| T12 | Baselines, and the bar they set | ✅ |
-| T13 | EDA + Markdown rendering | ✅ |
-| T15 | CLI: check, synth, eda, baseline | ✅ |
-| T16 | Test suite (124 tests, 96%), CI, three bug fixes | ✅ |
-| T17 | README and this plan | ✅ |
+| T19 | Model registry + parameterised preprocessor | 9 models, 2 optional |
+| T20 | Repeated-CV harness + paired bootstrap | spread 0.037 → 0.010 (F9) |
+| T21 | `ecri cv` — 9-model comparison | **nothing beats logistic** (F8) |
+| T22 | Imputation comparison | no measurable difference (F10) |
+| T23 | Permutation importance | 5–6 of 22 features carry it (F12) |
+| T24 | Calibration + threshold selection | **3:1 cost ⇒ flag 95%** (F11) |
+| T25 | School-level context join | free-lunch unconfirmed; race out (F13) |
+| T26 | Tests for phase 2a, CI, make targets | 184 tests, 94% |
 
-**What phase 1 bought:** a pipeline that runs end to end on real or synthetic
-data, a label definition established by proof rather than assumption, a leakage
-guard that fails runs instead of warning, and a measured bar — logistic
-regression at **0.657 ± 0.037** school-split AUC on Word Identification — that
-every phase-2 model has to clear.
+**What phase 2a changed.** Three results reshape the remaining work:
+
+1. **Logistic regression is the model** (F8). Every tree ensemble and the MLP
+   sit within noise of it at 10 repeats. Remaining modelling tickets are
+   expected to confirm this, not overturn it — and are scoped accordingly.
+2. **The product is a ranking, not a flag** (F11). At any cost ratio above
+   ~2:1 the cost-optimal threshold flags nearly every student. The app and the
+   inference contract present a ranked queue under a support budget.
+3. **Borderline results get re-run before they are written down** (F13). The
+   free-lunch gain cleared noise at 5 repeats and failed at 10.
 
 ---
 
-## Phase 2 — remaining
+## Phase 2b — open (40%)
 
-Ordered by dependency, not by appeal. **T18 comes first and blocks the rest**:
-without it, model comparisons are noise.
+Ordered by dependency. **T27 and T28 come first**: the Streamlit app (T37) and
+the model card (T36) both consume their output, so they gate Sarvesh's
+largest tickets.
 
-### Stage A — make comparisons trustworthy
+```
+T27 persistence ──► T28 inference ──► T37 Streamlit app ──┐
+      │                                                     │
+      └──────────► T36 model card ◄── T34 fairness          ├──► T38 report ──► T39 release
+                                                            │
+T29 boost · T30 regression · T31 t0 features · T32 MaskMLP ─┤
+T33 SHAP · T35 paper replication ───────────────────────────┘
+```
 
-#### T18 · Repeated cross-validation harness
-**Blocks T19–T25.** Single splits have an AUC SD near 0.037 (F7), so two models
-within 0.07 of each other are indistinguishable on one split. Build a harness
-that runs repeated stratified-group CV and returns mean ± SD per model.
-*Done when:* `ecri cv --model X --repeats N` reports mean ± SD; the baselines
-rerun through it and reproduce F7 within 0.01; single-split numbers no longer
-appear anywhere in a report.
+### Us — 10%
 
-#### T19 · Paired comparison with uncertainty
-Paired bootstrap or corrected resampled t-test over the same folds, so "model A
-beats model B" is a claim with an interval attached.
-*Done when:* the comparison table carries a difference, a CI, and a plain
-statement of whether the difference clears noise.
+#### T27 · Model persistence — 2%
+joblib artefact plus a JSON sidecar: data source, git SHA, config, feature
+names, CV scores, chosen threshold and the cost ratio it assumes. A saved model
+with no provenance is not reusable.
+*Done when:* save/load round-trips in a test; a loaded model reproduces its
+recorded out-of-fold AUC to 3 dp; the sidecar refuses to load against a
+different feature list.
 
-### Stage B — models
+#### T28 · Inference module — 4%
+`rank(records, budget=None)` against a stable input schema. Validates inputs,
+refuses unknown or leaking columns through the existing guard, and returns a
+**ranked queue with percentile and calibrated probability** — not a yes/no
+flag (F11). With a `budget`, returns the top-k.
+*Done when:* tested on records the model never saw, including missing fields;
+a record with a post-baseline column is rejected; a budget of k returns exactly
+k students in score order.
 
-#### T20 · Tree ensembles
-RandomForest and HistGradientBoosting (stdlib sklearn, no new dependency).
-HistGradientBoosting takes NaN natively, which is a genuine alternative to
-imputation given F5.
-*Done when:* both run through T18 and land in the comparison table against the
-0.657 bar; native-NaN handling is compared to the imputing pipeline.
+#### T39 · Reproducibility pass and release — 4%
+Lockfile, seed audit, `make all` from a clean clone on both the laptop and the
+M4, documented runtimes, tagged `v1.0`.
+*Done when:* a fresh clone reproduces the F8 table to 3 dp; every report in
+`reports/` regenerates from `make all`; the README results table is generated,
+not hand-typed.
 
-#### T21 · XGBoost / LightGBM
-Behind the existing `boost` extra, so the core install stays small.
-*Done when:* both are optional imports that skip cleanly when absent, CI
-installs the extra in one matrix leg, and results join the table.
+### Sarvesh — 30%
 
-#### T22 · MLP
-`MLPClassifier` with a small architecture search. The paper's method is an MLP,
-so this is the honest comparison point.
-*Done when:* tuned through T18, in the table, with the search space recorded.
+#### T29 · XGBoost and LightGBM — 1.5%
+Install the `boost` extra and run both through `ecri cv`. The specs already
+exist in `zoo.py`. **Expectation (F8):** they are the same family as the two
+gradient-boosting entries already measured below logistic, so a tie is the
+likely outcome — and a fine one to report.
+*Done when:* both appear in the comparison table at 10 repeats; one CI leg
+installs the extra.
 
-#### T23 · Masked-input pre-training (the paper's MaskMLP)
-Reproduce the paper's contribution: pre-train the MLP on randomly masked inputs
-with a cosine embedding loss between masked and unmasked embeddings, then
-fine-tune. Given F5's block missingness, masking whole blocks rather than
-individual cells is the variant worth testing.
-*Done when:* implemented, compared to the plain MLP through T18, and the result
-stated plainly whether or not it beats the simpler model.
+#### T30 · Regression on raw gain — 3%
+The label throws information away: it is `gain ≥ 27` (F1). Predict the gain
+itself from `ECRIRawData.csv` (t=1 minus t=0 as the **target only**), then
+threshold the prediction.
+*Done when:* RMSE/MAE/R² reported; the thresholded regressor is compared to
+direct classification on the same folds with the paired bootstrap; a test
+proves no t≥0.5 value reaches the features.
 
-#### T24 · Regression variant
-The raw gain is available from `ECRIRawData.csv`, so the thresholded label
-throws away information. Predict the gain directly and threshold afterwards.
-*Done when:* RMSE/MAE/R² reported, and the thresholded regressor compared to
-direct classification on the same folds.
+#### T31 · Richer baseline features from the raw file — 2.5%
+`ECRIRawData.csv` holds `SAwsS` (word study) and `SArcS` (comprehension), which
+the analysis table drops. Join **t=0 rows only**.
+*Done when:* the two measures are joined; `assert_no_leakage` passes; a test
+proves a t≥0.5 row cannot enter the join; the effect is measured at 10 repeats.
 
-#### T25 · Imputation comparison
-Median vs iterative vs native-NaN vs indicator-only. F5 notes the gaps are
-small on labelled rows, so the expected effect is small — the ticket exists to
-establish that rather than assume it.
-*Done when:* the comparison runs through T18 and the README states the finding
-even if it is "no material difference".
+#### T32 · Masked-input pre-training (the paper's MaskMLP) — 5%
+Reproduce the paper's method: pre-train an MLP on randomly masked inputs with a
+cosine-embedding loss between masked and unmasked embeddings, then fine-tune.
+Given F5's block missingness, also try masking whole blocks (the teacher
+survey, the assessment session) rather than independent cells.
+*Done when:* implemented, compared against the plain MLP **and logistic** at 10
+repeats, and the result stated plainly whether or not it wins. The plain MLP
+already sits within noise of logistic with 3.5× its variance (F8).
 
-### Stage C — interpretation
-
-#### T26 · Permutation importance
-Model-agnostic, computed on held-out folds.
-*Done when:* a ranked table plus a figure, for the best model and for logistic.
-
-#### T27 · SHAP explanations
+#### T33 · SHAP explanations — 2.5%
 Behind the `explain` extra.
-*Done when:* global summary plot plus per-student explanations, and the
-agreement (or not) with T26 is stated.
+*Done when:* global summary plot plus per-student explanations for logistic;
+agreement with T23's permutation ranking stated (Spearman ρ), and any
+disagreement explained.
 
-#### T28 · Calibration and threshold selection
-A risk score used for allocating intervention needs calibrated probabilities
-and a defensible cut point, not 0.5. Reliability curves, Platt/isotonic, and a
-threshold chosen by cost ratio.
-*Done when:* calibration curves are in the report and the chosen threshold is
-justified by a stated cost assumption.
+#### T34 · Fairness slice analysis — 3%
+Per-slice AUC and recall-at-risk for `LEP`, `SpEd`, `Gender`, `Tx`, and school
+free-lunch tercile. Use `evaluate.oof_frame()`, which already carries these
+columns. A tool that routes support to children must not work noticeably worse
+for one group.
+*Done when:* a slice table with bootstrap intervals per slice; any gap larger
+than the noise is called out in the model card.
 
-#### T29 · Fairness slice analysis
-Per-slice metrics for `LEP`, `SpEd`, `Gender`, `Tx`, and school free-lunch rate
-from `MetaData.csv`. A tool that routes support to children must not work
-noticeably worse for one group.
-*Done when:* a slice table with per-slice AUC and recall-at-risk, and any gap
-larger than the measurement noise is called out in the model card (T35).
+#### T35 · Replicate the paper's numbers — 4%
+Compare against the published School-split and student-split results, under
+the paper's own protocol. Re-test the free-lunch feature (F13) under that
+protocol while there.
+*Done when:* a side-by-side table with every gap explained, or documented as
+unexplained.
 
-### Stage D — data depth
+#### T36 · Model card and ethics statement — 1.5%
+Intended use, population (946 Tier-2 at-risk readers, 44 schools), performance
+with intervals, slice results from T34, and the limits: a 0.66-AUC ranker is a
+prompt to look more closely, never a placement decision. Must state the cost
+ratio behind any threshold (F11).
+*Done when:* `docs/model_card.md` exists, reads its numbers from the T27
+sidecar, and the app links to it.
 
-#### T30 · Join school-level context
-`MetaData.csv` carries free/reduced-price lunch and composition for all 44
-schools and is currently unused.
-*Done when:* joined on `SchlID`, the leakage guard still passes, and the effect
-on the comparison table is reported.
+#### T37 · Streamlit app — 5%
+The proposal's "Early Reading Risk Predictor", built on T28. **Frame it as a
+ranked queue under a support budget** — "you can help N more children this
+term; here they are, in order" — not a yes/no screen (F11). Show the
+calibrated probability, the top drivers, the uncertainty, and the model-card
+limits on screen.
+*Done when:* runs from the `app` extra; loads a T27 artefact; has a budget
+slider; never displays a bare flag without the cost ratio behind it.
 
-#### T31 · Richer baseline features from the longitudinal file
-`ECRIRawData.csv` holds `SAwsS` and `SArcS`, which the analysis table drops.
-Pull **t=0 rows only** and extend the feature set.
-*Done when:* the extra baseline measures are joined, `assert_no_leakage` passes,
-and a test proves a t≥0.5 row cannot enter the join.
-
-#### T32 · Replicate the paper's reported numbers
-Compare against the published School-split and student-split results.
-*Done when:* the comparison is tabulated with any gap explained, or the
-discrepancy is documented as unexplained.
-
-### Stage E — delivery
-
-#### T33 · Model persistence
-joblib artefact plus a JSON sidecar recording data source, git SHA, config,
-feature names and CV scores. A saved model with no provenance is not reusable.
-*Done when:* save/load round-trips in a test and a loaded model reproduces its
-recorded score.
-
-#### T34 · Inference module
-`predict(records) -> risk scores` against a stable input schema, validating
-inputs and refusing unknown or leaking columns.
-*Done when:* tested on records the model never saw, including ones with missing
-fields.
-
-#### T35 · Model card and ethics statement
-What the model is for, who it was fit on (Tier-2 at-risk readers in 44 schools,
-946 labelled students), measured performance with uncertainty, slice results
-from T29, and explicit limits: a 0.66-AUC screening aid is a prompt to look
-more closely, never a placement decision. The proposal's own framing —
-decision support, not replacement — belongs here as a constraint.
-*Done when:* `docs/model_card.md` exists and the Streamlit app links to it.
-
-#### T36 · Streamlit app
-The proposal's "Early Reading Risk Predictor": enter baseline assessment and
-classroom values, get a calibrated risk estimate with its drivers.
-*Done when:* runs from the `app` extra, loads a T33 artefact, shows the
-uncertainty and the model-card limits on screen rather than a bare number.
-
-#### T37 · Final report
+#### T38 · Final report — 2%
 Generated from the committed artefacts so it cannot drift from the code.
-*Done when:* `make report` writes a report whose every number traces to a
-reproducible run.
-
-#### T38 · Reproducibility pass
-Lockfile, seed audit, `make all` from a clean clone, documented runtimes.
-*Done when:* a fresh clone reproduces the comparison table to 3 decimal places.
+*Done when:* `make report` writes it, and every number traces to a reproducible
+run.
 
 ---
 
 ## Deferred, with reasons
 
-- **Class imbalance handling** (the proposal's challenge #2). The classes are
-  52.7% / 57.6% positive (F4) — near balanced. It becomes relevant only if the
-  target is redefined at a stricter growth threshold; until then it is work
-  with nothing to fix.
-- **Deep tabular architectures** (TabNet, FT-Transformer). 946 labelled rows and
-  22 features. The data does not support them, and T23 already covers the
-  paper's own neural contribution.
+- **Class-imbalance handling.** 52.7% / 57.6% positive (F4) — nothing to fix
+  unless the target is redefined at a stricter threshold.
+- **Hyper-parameter tuning.** F8 puts every flexible model within noise of
+  logistic; tuning them is optimising inside the noise band.
+- **Deep tabular architectures** (TabNet, FT-Transformer). 946 labelled rows;
+  T32 already covers the paper's own neural contribution.
+
+## Compute
+
+Heavy runs (10-repeat CV, permutation importance, MaskMLP training) can go to
+a remote box rather than a laptop. Set the host once and prefix the command:
+
+```bash
+export ECRI_REMOTE=user@compute-host
+ssh "$ECRI_REMOTE" 'cd ~/ecri && .venv/bin/python -m ecri.cli cv --repeats 10'
+```
+
+Put a job throttle in front of it if the box is shared, so parallel runs queue
+instead of overloading it. Pin identical library versions on both machines
+(`uv pip install -e ".[dev]"` from the same lockfile) and results transfer
+exactly — F8's 10-repeat replication was run this way.
