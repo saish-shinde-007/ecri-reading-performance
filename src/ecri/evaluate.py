@@ -98,12 +98,13 @@ def cross_validate(
     X: pd.DataFrame,
     y: pd.Series,
     plan: FoldPlan,
-    name: str,
+    model: str | zoo.ModelSpec,
     *,
     seed: int = 20260101,
 ) -> CVResult:
-    """Fit `name` on every fold of every repeat and keep the out-of-fold scores."""
-    spec = zoo.BY_NAME[name]
+    """Fit a model on every fold of every repeat and keep out-of-fold scores."""
+    spec = zoo.BY_NAME[model] if isinstance(model, str) else model
+    name = spec.name
     columns = zoo.columns_for(spec, X)
     y_true = y.to_numpy(int)
     oof = np.full((plan.n_repeats, len(X)), np.nan)
@@ -111,7 +112,9 @@ def cross_validate(
 
     for r, folds in enumerate(plan.repeats):
         for f, (train_idx, test_idx) in enumerate(folds):
-            pipeline = zoo.build(name, X.iloc[train_idx][columns], seed=seed + 100 * r + f)
+            pipeline = zoo.build_from_spec(
+                spec, X.iloc[train_idx][columns], seed=seed + 100 * r + f
+            )
             pipeline.fit(X.iloc[train_idx][columns], y.iloc[train_idx])
             scores = _positive_scores(pipeline, X.iloc[test_idx][columns])
             oof[r, test_idx] = scores
@@ -152,6 +155,58 @@ def run_models(
         X, y, groups, strategy=strategy, n_folds=n_folds, repeats=repeats, seed=seed
     )
     results = {name: cross_validate(X, y, plan, name, seed=seed) for name in names}
+    return results, plan
+
+
+# Imputation strategies compared in T22. Indicator columns are held constant
+# except where the variant is explicitly about them.
+IMPUTATION_VARIANTS: dict[str, tuple[dict, str]] = {
+    "median+indicator": (
+        {"numeric_impute": "median", "add_indicator": True},
+        "median fill, missingness kept as its own column",
+    ),
+    "median_only": (
+        {"numeric_impute": "median", "add_indicator": False},
+        "median fill, missingness discarded",
+    ),
+    "mean+indicator": (
+        {"numeric_impute": "mean", "add_indicator": True},
+        "mean fill, missingness kept",
+    ),
+    "iterative+indicator": (
+        {"numeric_impute": "iterative", "add_indicator": True},
+        "model-based fill (IterativeImputer), missingness kept",
+    ),
+}
+
+
+def compare_imputation(
+    frame: pd.DataFrame,
+    target: str,
+    *,
+    base: str = "logistic",
+    strategy: str = "school",
+    n_folds: int = 5,
+    repeats: int = 5,
+    seed: int = 20260101,
+) -> tuple[dict[str, CVResult], FoldPlan]:
+    """Run one estimator under several imputation strategies on shared folds."""
+    from .features import NATIVE_NAN, PreprocessorConfig
+
+    X, y, groups = split.features_and_target(frame, target)
+    plan = make_fold_plan(
+        X, y, groups, strategy=strategy, n_folds=n_folds, repeats=repeats, seed=seed
+    )
+    specs = [
+        zoo.variant(base, name, PreprocessorConfig(**kwargs), description)
+        for name, (kwargs, description) in IMPUTATION_VARIANTS.items()
+    ]
+    # Only a native-NaN estimator can skip imputation entirely.
+    if zoo.BY_NAME[base].family == "tree":
+        specs.append(
+            zoo.variant(base, "native_nan", NATIVE_NAN, "no imputation, NaN passed through")
+        )
+    results = {spec.name: cross_validate(X, y, plan, spec, seed=seed) for spec in specs}
     return results, plan
 
 
@@ -256,9 +311,7 @@ def warnings_for(results: dict[str, CVResult]) -> list[str]:
 
 def oof_frame(result: CVResult, frame: pd.DataFrame, target: str) -> pd.DataFrame:
     """Per-student out-of-fold scores, for calibration and slice analysis."""
-    out = pd.DataFrame(
-        {"y_true": result.y_true, "score": result.mean_scores}, index=frame.index
-    )
+    out = pd.DataFrame({"y_true": result.y_true, "score": result.mean_scores}, index=frame.index)
     for column in (schema.SCHOOL_ID, "Tier", "LEP", "SpEd", "Gender", "Tx"):
         if column in frame.columns:
             out[column] = frame[column].to_numpy()

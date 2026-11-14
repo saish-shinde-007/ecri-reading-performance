@@ -222,12 +222,59 @@ def cmd_cv(config: Config, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_impute(config: Config, args: argparse.Namespace) -> int:
+    """Compare imputation strategies for one estimator on shared folds."""
+    frame, dataset = _prepared(config)
+    print(f"comparing imputation strategies under `{args.base}`")
+    results, _ = evaluate.compare_imputation(
+        frame,
+        config.target,
+        base=args.base,
+        strategy=config.split.strategy,
+        n_folds=config.split.n_folds,
+        repeats=args.repeats,
+        seed=config.seed,
+    )
+    table = evaluate.results_table(results)
+    print(f"\n{table.round(3).to_string()}")
+
+    reference = "median+indicator"
+    comparisons = evaluate.compare_to_reference(
+        results, reference, n_boot=args.bootstrap, seed=config.seed
+    )
+    print(f"\npaired against `{reference}`:")
+    for comparison in comparisons:
+        print(f"  {comparison.summary()}")
+    decisive = [c for c in comparisons if c.decisive]
+    verdict = "matters here" if decisive else "does not matter here"
+    print(
+        f"\n{len(decisive)} of {len(comparisons)} difference(s) clear noise — "
+        f"imputation choice {verdict}."
+    )
+
+    paths.ensure_dirs()
+    out = paths.REPORTS / "imputation.md"
+    out.write_text(
+        f"# Imputation comparison\n\nSource: **{dataset.source}** data. "
+        f"Estimator: `{args.base}`. Target: `{config.target}`. "
+        f"{config.split.n_folds} folds x {args.repeats} repeats, "
+        f"`{config.split.strategy}`-split.\n\n"
+        + to_markdown(table.round(3))
+        + f"\n\n## Paired against `{reference}`\n\n"
+        + "\n".join(f"- {c.summary()}" for c in comparisons)
+        + "\n"
+    )
+    print(f"wrote {paths.rel(out)}")
+    return 0
+
+
 COMMANDS = {
     "synth": cmd_synth,
     "check": cmd_check,
     "eda": cmd_eda,
     "baseline": cmd_baseline,
     "cv": cmd_cv,
+    "impute": cmd_impute,
 }
 
 
@@ -251,6 +298,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_cv.add_argument("--repeats", type=int, default=5, help="independent fold plans")
     p_cv.add_argument("--reference", default="logistic", help="model to compare the rest against")
     p_cv.add_argument("--bootstrap", type=int, default=2000, help="bootstrap resamples")
+
+    p_imp = sub.add_parser("impute", help="compare imputation strategies")
+    p_imp.add_argument("--base", default="logistic", help="estimator to hold fixed")
+    p_imp.add_argument("--repeats", type=int, default=5)
+    p_imp.add_argument("--bootstrap", type=int, default=2000)
     return parser
 
 

@@ -268,3 +268,36 @@ well inside either spread), but the spread shrinks by a factor of 3.7, because
 every student is scored once per repeat instead of a quarter of them being
 scored once. This is why `ecri cv` replaced `ecri baseline` as the way results
 are quoted, and why the differences in F8 can be resolved at all.
+
+## F10 — Imputation strategy makes no measurable difference
+
+Four strategies under logistic regression, plus native-NaN under gradient
+boosting, all on identical folds (5 × 5, school-disjoint). `make impute`.
+
+| Strategy | AUC under logistic | AUC under hist GB |
+|---|---|---|
+| median + indicator | 0.662 ± 0.010 | 0.647 ± 0.005 |
+| median only (no indicator) | 0.663 ± 0.011 | 0.647 ± 0.005 |
+| mean + indicator | 0.662 ± 0.010 | 0.646 ± 0.006 |
+| iterative (model-based) + indicator | 0.660 ± 0.010 | 0.642 ± 0.004 |
+| no imputation, raw NaN | — | 0.644 ± 0.006 |
+
+**Zero of seven paired differences clear noise.** The widest is 0.004 with an
+interval of [−0.005, +0.013].
+
+This is the answer F5 predicted and the ticket existed to establish rather than
+assume: on the 946 labelled rows the gaps are small (worst column 24.8%, most
+under 6%), so there is little for an imputer to get wrong. The expensive option
+— `IterativeImputer`, which fits a model per column — is the only one that is
+ever numerically worst, and even that is inside the noise.
+
+Two things follow:
+
+- **Keep median + indicator.** It is the cheapest, it is never worse, and the
+  indicator columns cost nothing. Dropping the indicators is also defensible
+  (`median_only` is nominally top under logistic by 0.001) but the difference
+  is not a result, and the indicators carry the block-missingness structure
+  that a later fairness or slice analysis may want.
+- **Do not spend phase-2 time on imputation.** The ticket is closed with a
+  measured negative, which is worth more than an untested assumption in either
+  direction.
