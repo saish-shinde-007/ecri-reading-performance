@@ -62,6 +62,12 @@ jobs:
           ecri -q importance --models logistic --repeats 1
           ecri -q calibrate --repeats 1
           ecri -q school
+          ecri -q model train --repeats 1 --out "$RUNNER_TEMP/bundle"
+          ecri -q model verify "$RUNNER_TEMP/bundle" --cv
+          ecri -q synth --rows 300 --features-only
+          ecri -q rank data/interim/synthetic_rank_input.csv \
+            --model-dir "$RUNNER_TEMP/bundle" --budget 10 --out "$RUNNER_TEMP/ranked.csv"
+          test "$(($(wc -l < "$RUNNER_TEMP/ranked.csv") - 1))" -eq 10
 
       - name: Verify the derived label rule
         # Exits 2 when data/raw is empty, which is the normal CI case. Only a

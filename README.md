@@ -80,7 +80,13 @@ make eda         # reports/eda.md + figures
 make cv          # 9-model comparison, repeated CV, paired bootstrap
 make calibrate   # reliability curves + cost-justified threshold
 make importance  # permutation importance, two model families
+make model       # train, calibrate, save and verify the deployable model
+make rank-demo   # rank a batch of students with it, most at risk first
 ```
+
+To use the model from code — loading it, ranking students, reading its
+metadata — see **[docs/inference.md](docs/inference.md)**, the contract the app
+and the model card are built on.
 
 No data needed — everything falls back to a synthetic generator built from the
 real file's aggregate statistics, and says so loudly on every run. For real
@@ -141,14 +147,19 @@ label lookup. The guard rejects them.
 
 ## Project status
 
-**60% shipped.** Phase 1 (foundation, 40%) and phase 2a (evaluation and
-models, 20%) — 26 tickets, 184 tests, 94% coverage, CI on Python 3.11–3.13.
+**66% shipped.** Phase 1 (foundation, 40%), phase 2a (evaluation and models,
+20%), and our phase-2b contracts (6%): model persistence (T27) and the ranking
+contract (T28). 229 tests, 95% coverage, CI on Python 3.11–3.13.
 
-**40% remaining**, split **30% Sarvesh / 10% us** by effort, in
-**[PLAN.md](PLAN.md)**: persistence and the inference contract first (they
-gate the app), then boosting, regression on raw gain, the paper's MaskMLP,
-SHAP, fairness slices, paper replication, the model card, the Streamlit app,
-and the final report.
+Building the ranking contract turned up two things the metrics never showed:
+a single blank cell could move a student half the queue (F14, fixed), and the
+model is grounded only for Tier-2 readers with a baseline Woodcock score —
+for every other student in the cohort its most important input is missing
+(F15).
+
+**Remaining 34%**, in **[PLAN.md](PLAN.md)**: Sarvesh's tickets
+([#2–#11](https://github.com/saish-shinde-007/ecri-reading-performance/issues?q=is%3Aissue%20label%3A%22owner%3A%20sarvesh%22)),
+now unblocked, and our release ticket T39.
 
 ## Data and licence
 
