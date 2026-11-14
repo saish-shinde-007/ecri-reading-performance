@@ -6,12 +6,9 @@ PY := .venv/bin/python
 install:
 	uv sync --locked --extra dev
 
+# Pinned to a commit of the dataset repo; every file is checked against its sha256.
 data:
-	@mkdir -p data/raw
-	curl -fSL -o data/raw/ECRIDataSet.csv https://raw.githubusercontent.com/ecri-data/ECRI-Dataset/main/ECRI/ECRIDataSet.csv
-	curl -fSL -o data/raw/ECRIRawData.csv https://raw.githubusercontent.com/ecri-data/ECRI-Dataset/main/ECRI/ECRIRawData.csv
-	curl -fSL -o data/raw/MetaData.csv    https://raw.githubusercontent.com/ecri-data/ECRI-Dataset/main/ECRI/MetaData.csv
-	@echo "ECRI data is CC BY-NC-SA 4.0 — cite Shangguan et al. (2024). See docs/data.md."
+	$(PY) tools/fetch_data.py
 
 check:
 	$(PY) -m ecri.cli check

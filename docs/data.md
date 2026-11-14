@@ -14,11 +14,14 @@ and "Data"). There is no access form and no request process.
 ## Download
 
 ```bash
-make data            # or the equivalent by hand:
-curl -L -o data/raw/ECRIDataSet.csv  https://raw.githubusercontent.com/ecri-data/ECRI-Dataset/main/ECRI/ECRIDataSet.csv
-curl -L -o data/raw/ECRIRawData.csv  https://raw.githubusercontent.com/ecri-data/ECRI-Dataset/main/ECRI/ECRIRawData.csv
-curl -L -o data/raw/MetaData.csv     https://raw.githubusercontent.com/ecri-data/ECRI-Dataset/main/ECRI/MetaData.csv
+make data            # = python tools/fetch_data.py
 ```
+
+The fetcher downloads from a **pinned commit** of the dataset repo —
+`7168d48`, its last commit, 2024-08-19 — rather than from `main`, and checks
+every file against its sha256 before putting it in `data/raw`. A file that does
+not match is refused. `python tools/fetch_data.py --check` verifies what is
+already there without downloading. The pins live in `src/ecri/sources.py`.
 
 `ecri.loader.load_analysis()` checks these paths and falls back to synthetic
 data (with a loud warning) when they are absent.
