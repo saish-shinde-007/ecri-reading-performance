@@ -21,6 +21,9 @@ IDENTIFIERS = (STUDENT_ID, SCHOOL_ID, TEACHER_ID)
 TARGET_WORD_ID = "RMwidRS_target"
 TARGET_WORD_ATTACK = "RMwdaRS_target"
 TARGETS = (TARGET_WORD_ID, TARGET_WORD_ATTACK)
+# Each label is a gain in one Woodcock measure (F1), so that measure's baseline
+# is the input the score leans on most (F12). Inference warns when it is absent.
+BASELINE_OF_TARGET = {TARGET_WORD_ID: "RMwidRS", TARGET_WORD_ATTACK: "RMwdaRS"}
 
 # ── features, grouped by where they come from ────────────────────────────────
 STUDENT_CATEGORICAL = (
