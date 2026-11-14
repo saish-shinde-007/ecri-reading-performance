@@ -57,6 +57,11 @@ jobs:
           ecri -q synth --rows 500
           ecri -q eda
           ecri -q baseline --repeats 3
+          ecri -q cv --models logistic,random_forest,majority --repeats 2 --bootstrap 200
+          ecri -q impute --repeats 1 --bootstrap 200
+          ecri -q importance --models logistic --repeats 1
+          ecri -q calibrate --repeats 1
+          ecri -q school
 
       - name: Verify the derived label rule
         # Exits 2 when data/raw is empty, which is the normal CI case. Only a

@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.6"]
+dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff==0.17.5"]
 # phase 2 — see PLAN.md T16-T37
 boost = ["xgboost>=2.0", "lightgbm>=4.3"]
 explain = ["shap>=0.45"]

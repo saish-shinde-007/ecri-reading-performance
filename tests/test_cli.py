@@ -53,3 +53,44 @@ def test_target_and_strategy_overrides(capsys):
 def test_unknown_target_rejected_by_the_parser():
     with pytest.raises(SystemExit):
         cli.main(["--target", "SAtoS", "check"])
+
+
+def test_cv_compares_models_and_writes_a_report(capsys):
+    assert (
+        cli.main(
+            ["-q", "cv", "--models", "logistic,majority", "--repeats", "1", "--bootstrap", "100"]
+        )
+        == 0
+    )
+    out = capsys.readouterr().out
+    assert "paired against `logistic`" in out
+    assert (paths.REPORTS / "model_comparison.md").is_file()
+
+
+def test_cv_rejects_unknown_models():
+    with pytest.raises(SystemExit):
+        cli.main(["-q", "cv", "--models", "transformer"])
+
+
+def test_impute_reports_a_verdict(capsys):
+    assert cli.main(["-q", "impute", "--repeats", "1", "--bootstrap", "100"]) == 0
+    assert "imputation choice" in capsys.readouterr().out
+
+
+def test_importance_writes_a_report(capsys):
+    assert cli.main(["-q", "importance", "--models", "logistic", "--repeats", "1"]) == 0
+    assert (paths.REPORTS / "importance.md").is_file()
+    assert "above noise" in capsys.readouterr().out
+
+
+def test_calibrate_states_its_cost_assumption(capsys):
+    assert cli.main(["-q", "calibrate", "--repeats", "1", "--cost-ratio", "2"]) == 0
+    out = capsys.readouterr().out
+    assert "2:1" in out
+    assert (paths.REPORTS / "calibration.md").is_file()
+
+
+def test_school_without_metadata_exits_cleanly(capsys, monkeypatch, tmp_path):
+    monkeypatch.setattr(loader.paths, "SCHOOL_META_CSV", tmp_path / "absent.csv")
+    assert cli.main(["-q", "school"]) == 0
+    assert "nothing to join" in capsys.readouterr().out

@@ -66,6 +66,8 @@ def test_signal_is_weak_like_the_real_data(raw_frame):
     labelled = raw_frame[raw_frame["RMwidRS_target"].notna()]
     y = labelled["RMwidRS_target"].to_numpy(float)
     for column in schema.NUMERIC_FEATURES:
+        if column not in labelled.columns:  # school context is joined, not generated
+            continue
         values = labelled[column]
         mask = values.notna().to_numpy()
         if mask.sum() < 50 or values[mask].std() == 0:
