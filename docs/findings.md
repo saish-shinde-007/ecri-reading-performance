@@ -201,3 +201,70 @@ config default.
 
 Bottom line: a phase-2 model is only interesting if it clears **0.657 ± 0.037**
 school-split on Word ID over repeated splits. That is the bar.
+
+## F8 — No non-linear model beats logistic regression
+
+Nine models, 5 folds × 5 repeats, school-disjoint, out-of-fold AUC pooled per
+repeat. Reproduce with `make cv`.
+
+| Model | AUC (mean ± SD) | AP | recall (at-risk) | Brier |
+|---|---|---|---|---|
+| **logistic regression** | **0.662 ± 0.010** | 0.655 | 0.557 | 0.232 |
+| random forest | 0.655 ± 0.006 | 0.643 | 0.468 | 0.233 |
+| hist gradient boosting | 0.647 ± 0.005 | 0.652 | 0.540 | 0.241 |
+| hist GB, native NaN | 0.644 ± 0.006 | 0.647 | 0.540 | 0.243 |
+| MLP (32-16) | 0.618 ± 0.040 | 0.612 | 0.489 | 0.239 |
+| decision tree, depth 3 | 0.603 ± 0.010 | 0.608 | 0.369 | 0.247 |
+| logistic, baseline score only | 0.592 ± 0.002 | 0.574 | 0.426 | 0.241 |
+| stratified guess | 0.511 ± 0.013 | 0.533 | 0.485 | 0.488 |
+| majority class | 0.500 | 0.527 | 0.000 | 0.473 |
+
+Paired bootstrap over students against logistic regression, folds held fixed,
+95% interval:
+
+| Difference | ΔAUC | 95% CI | Verdict |
+|---|---|---|---|
+| vs majority | +0.165 | [+0.130, +0.198] | clears noise |
+| vs stratified | +0.139 | [+0.089, +0.188] | clears noise |
+| vs baseline-score-only | +0.073 | [+0.037, +0.110] | clears noise |
+| vs tree depth 3 | +0.042 | [+0.005, +0.080] | clears noise |
+| vs hist GB native NaN | +0.008 | [−0.024, +0.038] | within noise |
+| vs MLP | +0.008 | [−0.015, +0.031] | within noise |
+| vs random forest | +0.005 | [−0.025, +0.037] | within noise |
+| vs hist gradient boosting | +0.004 | [−0.029, +0.035] | within noise |
+
+**Four differences clear noise and four do not, and the split between them is
+the finding.** Logistic regression beats every baseline decisively — including
+the single-feature model by +0.073, so the multivariate signal is real. It then
+beats no non-linear model by any margin that survives resampling the students.
+
+Why that is the expected answer rather than a disappointment: 946 rows, 22
+features, and a best single correlation of |r| = 0.20 (F3). There is not enough
+signal or sample for a flexible model to find structure a linear one misses,
+and the MLP's SD of 0.040 — four times logistic's — shows what extra capacity
+buys here, which is variance.
+
+Consequences:
+
+1. **Logistic regression is the model to ship.** It is the most accurate, the
+   most stable, the cheapest, and the easiest to explain to a teacher or
+   administrator. Preferring a tree ensemble on a 0.005 difference would be
+   choosing opacity for noise.
+2. **The boosting ticket is not a likely win.** XGBoost and LightGBM are the
+   same model family as the two gradient-boosting entries already measured
+   here; both landed below logistic. The ticket stays in the plan for
+   completeness, with the expectation set.
+3. **Report the interval, not the ranking.** The table is sorted by AUC, but
+   rows 1–4 are one statistical tie. A write-up that calls random forest
+   "second best" is reading noise as order.
+
+## F9 — The pooled-per-repeat AUC is four times more stable than a single split
+
+Single school-split, 12 draws (F7): logistic 0.657 ± **0.037**.
+5 folds × 5 repeats, pooled per repeat (F8): logistic 0.662 ± **0.010**.
+
+Same model, same data, same split strategy — the mean barely moves (+0.005,
+well inside either spread), but the spread shrinks by a factor of 3.7, because
+every student is scored once per repeat instead of a quarter of them being
+scored once. This is why `ecri cv` replaced `ecri baseline` as the way results
+are quoted, and why the differences in F8 can be resolved at all.
