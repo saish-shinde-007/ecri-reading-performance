@@ -49,7 +49,7 @@ def _xgboost(seed: int):
         reg_lambda=2.0,
         eval_metric="logloss",
         random_state=seed,
-        n_jobs=2,
+        n_jobs=1,
     )
 
 
@@ -64,11 +64,15 @@ def _lightgbm(seed: int):
         colsample_bytree=0.8,
         reg_lambda=2.0,
         random_state=seed,
-        n_jobs=2,
+        n_jobs=1,
         verbose=-1,
     )
 
 
+# Every estimator runs single-threaded. With n_jobs=2 the random forest sums its
+# trees' votes in thread-finishing order, and float addition is not
+# associative: two runs with the same seed differed by 1.1e-16. Harmless to any
+# reported number, but it broke "same inputs, same output" (T39 seed audit).
 # Hyper-parameters are deliberately conservative: 946 rows and 22 features
 # (F3), so capacity is the enemy. Tuning is T28, and it only means anything
 # through the repeated-CV harness.
@@ -109,7 +113,7 @@ SPECS: tuple[ModelSpec, ...] = (
         "random forest, 500 shallow trees",
         "tree",
         lambda seed: RandomForestClassifier(
-            n_estimators=500, max_depth=6, min_samples_leaf=10, n_jobs=2, random_state=seed
+            n_estimators=500, max_depth=6, min_samples_leaf=10, n_jobs=1, random_state=seed
         ),
     ),
     ModelSpec(
