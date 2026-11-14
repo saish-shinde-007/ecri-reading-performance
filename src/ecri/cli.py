@@ -9,7 +9,7 @@ import warnings
 
 import pandas as pd
 
-from . import clean, eda, evaluate, loader, paths, schema, split
+from . import calibrate, clean, eda, evaluate, interpret, loader, paths, schema, split
 from .config import Config, load_config
 from .models import zoo
 from .models.baselines import results_table, run_baselines
@@ -268,6 +268,130 @@ def cmd_impute(config: Config, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_importance(config: Config, args: argparse.Namespace) -> int:
+    """Permutation importance on held-out folds, for one or two models."""
+    frame, dataset = _prepared(config)
+    names = _model_names(args.models)
+    results = {}
+    for name in names:
+        print(f"permuting features under `{name}`...")
+        results[name] = interpret.run(
+            frame,
+            config.target,
+            name,
+            strategy=config.split.strategy,
+            n_folds=config.split.n_folds,
+            repeats=args.repeats,
+            seed=config.seed,
+        )
+        table = results[name].table
+        print(f"\n{results[name].summary(args.top)}")
+        keepers = list(interpret.meaningful(table).index)
+        print(f"  above noise ({len(keepers)} of {len(table)}): {', '.join(keepers) or 'none'}")
+
+    if len(results) >= 2:
+        first, second = list(results)[:2]
+        rho = interpret.agreement(results[first].table, results[second].table)
+        print(f"\nrank agreement {first} vs {second}: Spearman rho = {rho:.3f}")
+
+    paths.ensure_dirs()
+    out = paths.REPORTS / "importance.md"
+    lines = [
+        "# Permutation importance",
+        "",
+        f"Source: **{dataset.source}** data. Target: `{config.target}`. "
+        f"Held-out folds, `{config.split.strategy}`-split, "
+        f"{config.split.n_folds} folds x {args.repeats} repeats.",
+        "",
+        "Each number is the drop in held-out ROC-AUC when that raw column is "
+        "shuffled. A mean smaller than its SD is noise.",
+        "",
+    ]
+    for name, result in results.items():
+        lines += [
+            f"## {name}",
+            "",
+            to_markdown(result.table.round(4)),
+            "",
+            f"![importance]({result.figure})",
+            "",
+        ]
+    out.write_text("\n".join(lines))
+    print(f"wrote {paths.rel(out)}")
+    return 0
+
+
+def cmd_calibrate(config: Config, args: argparse.Namespace) -> int:
+    """Reliability curves and a cost-justified threshold for one model."""
+    frame, dataset = _prepared(config)
+    name = args.model
+    if name not in zoo.available_models():
+        raise SystemExit(f"model {name!r} is not available")
+
+    results, _ = evaluate.run_models(
+        frame,
+        config.target,
+        [name],
+        strategy=config.split.strategy,
+        n_folds=config.split.n_folds,
+        repeats=args.repeats,
+        seed=config.seed,
+    )
+    result = results[name]
+    y_true, scores = result.y_true, result.mean_scores
+
+    calibrators, choice, sweep, figure = calibrate.report(
+        y_true, scores, name, cost_ratio=args.cost_ratio
+    )
+    print(f"\nout-of-fold AUC {result.mean():.3f} ± {result.sd():.3f}")
+    print("\ncalibration (fitted and scored on the same out-of-fold predictions,")
+    print("so these are an upper bound — they show whether calibration is broken):")
+    for cal in calibrators.values():
+        print(f"  {cal.method:9s} Brier {cal.brier:.4f}  mean |gap| {cal.calibration_error:.4f}")
+
+    print(f"\nthreshold at {args.cost_ratio:g}:1 (missing an at-risk child : a false flag)")
+    print(f"  {choice.summary()}")
+    at_default = calibrate.metrics_at(y_true, scores, 0.5)
+    at_chosen = calibrate.metrics_at(y_true, scores, choice.threshold)
+    print(
+        f"  at 0.50          recall(at-risk) {at_default.recall_at_risk:.3f}  "
+        f"precision {1 - at_default.fp / max(1, at_default.fp + at_default.tn):.3f}"
+    )
+    print(f"  at {choice.threshold:.2f}          recall(at-risk) {at_chosen.recall_at_risk:.3f}")
+    print(f"\nhow the threshold moves with the cost assumption:\n{sweep.to_string()}")
+
+    paths.ensure_dirs()
+    out = paths.REPORTS / "calibration.md"
+    out.write_text(
+        f"# Calibration and threshold — `{name}`\n\n"
+        f"Source: **{dataset.source}** data. Target: `{config.target}`. "
+        f"Out-of-fold over {config.split.n_folds} folds x {args.repeats} repeats, "
+        f"`{config.split.strategy}`-split. AUC {result.mean():.3f} ± {result.sd():.3f}.\n\n"
+        "## Calibration\n\nFitted and scored on the same out-of-fold predictions, so "
+        "optimistic by construction. They answer whether calibration is broken, not "
+        "what the Brier score is.\n\n"
+        + to_markdown(
+            pd.DataFrame(
+                [
+                    {
+                        "method": c.method,
+                        "brier": round(c.brier, 4),
+                        "mean_abs_gap": round(c.calibration_error, 4),
+                    }
+                    for c in calibrators.values()
+                ]
+            ).set_index("method")
+        )
+        + f"\n\n![reliability]({figure})\n\n## Threshold\n\n"
+        f"Chosen at a stated cost ratio of {args.cost_ratio:g}:1 — missing a child who "
+        "falls short against a second look at a child who was fine. This is an "
+        "assumption, not a measurement.\n\n"
+        f"- {choice.summary()}\n\n" + to_markdown(sweep) + "\n"
+    )
+    print(f"\nwrote {paths.rel(out)}")
+    return 0
+
+
 COMMANDS = {
     "synth": cmd_synth,
     "check": cmd_check,
@@ -275,6 +399,8 @@ COMMANDS = {
     "baseline": cmd_baseline,
     "cv": cmd_cv,
     "impute": cmd_impute,
+    "importance": cmd_importance,
+    "calibrate": cmd_calibrate,
 }
 
 
@@ -303,6 +429,21 @@ def build_parser() -> argparse.ArgumentParser:
     p_imp.add_argument("--base", default="logistic", help="estimator to hold fixed")
     p_imp.add_argument("--repeats", type=int, default=5)
     p_imp.add_argument("--bootstrap", type=int, default=2000)
+
+    p_fi = sub.add_parser("importance", help="permutation importance on held-out folds")
+    p_fi.add_argument("--models", default="logistic", help="comma-separated names")
+    p_fi.add_argument("--repeats", type=int, default=3)
+    p_fi.add_argument("--top", type=int, default=12, help="rows to print")
+
+    p_cal = sub.add_parser("calibrate", help="reliability curves and threshold selection")
+    p_cal.add_argument("--model", default="logistic")
+    p_cal.add_argument("--repeats", type=int, default=5)
+    p_cal.add_argument(
+        "--cost-ratio",
+        type=float,
+        default=calibrate.DEFAULT_COST_RATIO,
+        help="cost of missing an at-risk child vs a false flag",
+    )
     return parser
 
 

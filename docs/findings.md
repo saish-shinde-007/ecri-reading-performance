@@ -301,3 +301,51 @@ Two things follow:
 - **Do not spend phase-2 time on imputation.** The ticket is closed with a
   measured negative, which is worth more than an untested assumption in either
   direction.
+
+## F11 — At any plausible cost ratio the model says "screen nearly everyone"
+
+Out-of-fold logistic scores, threshold chosen to minimise
+`cost_ratio × (missed at-risk) + (false flags)`. `make calibrate`.
+
+| Cost ratio | Threshold | Students flagged | Recall (at-risk) | Precision |
+|---|---|---|---|---|
+| 1:1 | 0.506 | 44.2% | 57.9% | 62.0% |
+| 2:1 | 0.750 | 85.3% | 91.3% | 50.6% |
+| 3:1 | 0.827 | **94.8%** | 97.8% | 48.7% |
+| 5:1 | 0.989 | 100% | 100% | 47.3% |
+| 10:1 | 0.989 | 100% | 100% | 47.3% |
+
+**This is the most consequential finding for the product, and it is a negative
+one.** At 3:1 — a mild assumption, since missing a struggling reader plainly
+costs more than a second look at one who is fine — the cost-optimal rule flags
+19 students in 20. At 5:1 it flags everyone. The model's recommendation
+degenerates into blanket screening.
+
+The arithmetic behind it is not subtle. 47.3% of this population falls short of
+adequate growth, and the ranking is only 0.66 AUC. When the adverse outcome is
+that common and the signal that weak, the cheapest way to avoid the expensive
+error is to flag almost everybody, and a weak ranker cannot beat that.
+
+What follows:
+
+1. **Do not ship a 3:1 threshold and call it targeting.** It is blanket
+   screening with extra steps, and presenting it as a model decision would
+   misrepresent what the model contributes.
+2. **The honest operating point is near 1:1** (threshold ≈ 0.51, flagging 44%,
+   catching 58% of at-risk students at 62% precision). That is a real, if
+   modest, improvement over flagging at random, and it is the point to put in
+   the app and the model card.
+3. **The useful output is the ranking, not the flag.** With a fixed support
+   budget — "we can give Tier-2 help to 30 more children this term" — the model
+   earns its keep by ordering the queue. Framing it as a yes/no screen is what
+   makes it look useless.
+4. **The cost ratio is an assumption and must be stated wherever a threshold
+   appears.** It is a single constant in `calibrate.DEFAULT_COST_RATIO`, and
+   moving it from 1 to 3 more than doubles the number of children flagged.
+
+Calibration itself is not broken: raw Brier 0.2301 against 0.2278 for Platt and
+0.2232 for isotonic, mean absolute reliability gap 0.052 raw against 0.036
+Platt. Those are fitted and scored on the same out-of-fold predictions, so they
+are an upper bound — isotonic's 0.0000 gap is in-sample overfit, not a result —
+but the gap between raw and calibrated is small enough that the raw scores are
+usable as probabilities with a Platt step on top.
