@@ -88,6 +88,7 @@ make calibrate   # reliability curves + cost-justified threshold
 make importance  # permutation importance, two model families
 make model       # train, calibrate, save and verify the deployable model
 make rank-demo   # rank a batch of students with it, most at risk first
+make reproduce   # re-derive every headline number; fails if any moves
 ```
 
 To use the model from code — loading it, ranking students, reading its
@@ -153,19 +154,22 @@ label lookup. The guard rejects them.
 
 ## Project status
 
-**66% shipped.** Phase 1 (foundation, 40%), phase 2a (evaluation and models,
-20%), and our phase-2b contracts (6%): model persistence (T27) and the ranking
-contract (T28). 229 tests, 95% coverage, CI on Python 3.11–3.13.
+**70% shipped — every ticket of ours is done** (tag `v0.9.0`). Phase 1
+(foundation, 40%), phase 2a (evaluation and models, 20%), and our phase-2b
+tickets (10%): model persistence (T27), the ranking contract (T28), and the
+reproducibility gate (T39).
 
-Building the ranking contract turned up two things the metrics never showed:
-a single blank cell could move a student half the queue (F14, fixed), and the
-model is grounded only for Tier-2 readers with a baseline Woodcock score —
-for every other student in the cohort its most important input is missing
-(F15).
+Everything here is reproducible from a fresh clone: dependencies are locked,
+the data is pinned to a commit and verified by sha256, every seed is audited
+by tests, and `make reproduce` re-derives the headline numbers and fails if
+any moves. CI runs that gate on Linux, in addition to the Mac laptop and the
+compute box it was checked on. Details in
+**[docs/reproducibility.md](docs/reproducibility.md)**.
 
-**Remaining 34%**, in **[PLAN.md](PLAN.md)**: Sarvesh's tickets
-([#2–#11](https://github.com/saish-shinde-007/ecri-reading-performance/issues?q=is%3Aissue%20label%3A%22owner%3A%20sarvesh%22)),
-now unblocked, and our release ticket T39.
+**Remaining 30%** is Sarvesh's
+([issues #2–#11](https://github.com/saish-shinde-007/ecri-reading-performance/issues?q=is%3Aissue%20label%3A%22owner%3A%20sarvesh%22)),
+unblocked since T27/T28. `v1.0.0` follows his final report
+([RELEASING.md](RELEASING.md)).
 
 ## Data and licence
 
