@@ -57,13 +57,17 @@ def _numeric_branch(config: PreprocessorConfig) -> Pipeline:
         from sklearn.impute import IterativeImputer
 
         steps.append(
-            ("impute", IterativeImputer(random_state=0, max_iter=10,
-                                        add_indicator=config.add_indicator))
+            (
+                "impute",
+                IterativeImputer(random_state=0, max_iter=10, add_indicator=config.add_indicator),
+            )
         )
     elif config.numeric_impute != "none":
         steps.append(
-            ("impute", SimpleImputer(strategy=config.numeric_impute,
-                                     add_indicator=config.add_indicator))
+            (
+                "impute",
+                SimpleImputer(strategy=config.numeric_impute, add_indicator=config.add_indicator),
+            )
         )
     elif config.add_indicator:
         from sklearn.impute import MissingIndicator

@@ -18,9 +18,7 @@ from ..metrics import ClassificationMetrics, evaluate, leakage_warning
 from ..split import Split
 from . import zoo
 
-BASELINES: dict[str, str] = {
-    name: zoo.BY_NAME[name].description for name in zoo.BASELINE_NAMES
-}
+BASELINES: dict[str, str] = {name: zoo.BY_NAME[name].description for name in zoo.BASELINE_NAMES}
 
 
 @dataclass(frozen=True)
