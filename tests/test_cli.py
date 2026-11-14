@@ -94,3 +94,37 @@ def test_school_without_metadata_exits_cleanly(capsys, monkeypatch, tmp_path):
     monkeypatch.setattr(loader.paths, "SCHOOL_META_CSV", tmp_path / "absent.csv")
     assert cli.main(["-q", "school"]) == 0
     assert "nothing to join" in capsys.readouterr().out
+
+
+def test_model_train_show_verify_then_rank(tmp_path, capsys):
+    import pandas as pd
+
+    bundle = tmp_path / "bundle"
+    assert cli.main(["-q", "model", "train", "--repeats", "1", "--out", str(bundle)]) == 0
+    assert "SYNTHETIC" in capsys.readouterr().out
+    assert cli.main(["-q", "model", "show", str(bundle)]) == 0
+    assert "CV AUC" in capsys.readouterr().out
+    assert cli.main(["-q", "model", "verify", str(bundle), "--cv"]) == 0
+    assert "agree to 3 dp" in capsys.readouterr().out
+
+    assert cli.main(["-q", "synth", "--rows", "300", "--features-only"]) == 0
+    ranked = tmp_path / "ranked.csv"
+    source = str(paths.INTERIM / "synthetic_rank_input.csv")
+    args = ["-q", "rank", source, "--model-dir", str(bundle), "--budget", "5", "--out", str(ranked)]
+    assert cli.main(args) == 0
+    assert len(pd.read_csv(ranked)) == 5
+    assert "not a placement decision" in capsys.readouterr().out
+
+
+def test_rank_refuses_a_labelled_file_cleanly(tmp_path, capsys):
+    bundle = tmp_path / "bundle"
+    cli.main(["-q", "model", "train", "--repeats", "1", "--out", str(bundle)])
+    cli.main(["-q", "synth", "--rows", "300"])  # full table: outcomes included
+    source = str(paths.INTERIM / "synthetic_ECRIDataSet.csv")
+    assert cli.main(["-q", "rank", source, "--model-dir", str(bundle)]) == 2
+    assert "reveal the outcome" in capsys.readouterr().err
+
+
+def test_verify_reports_a_missing_bundle_cleanly(tmp_path, capsys):
+    assert cli.main(["-q", "model", "verify", str(tmp_path / "absent")]) == 2
+    assert "ecri model train" in capsys.readouterr().err

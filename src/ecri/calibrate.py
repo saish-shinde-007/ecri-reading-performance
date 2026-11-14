@@ -62,6 +62,23 @@ def _calibration_error(y_true: np.ndarray, scores: np.ndarray, bins: int = 10) -
     return float(np.mean(np.abs(observed - predicted)))
 
 
+def fit_platt(y_true: np.ndarray, scores: np.ndarray) -> LogisticRegression:
+    """A one-feature logistic map from raw score to calibrated probability.
+
+    Fit it on OUT-OF-FOLD scores. Fitted on the same model's in-sample scores
+    it learns that model's overconfidence on its own training rows instead.
+    """
+    model = LogisticRegression(max_iter=1000)
+    model.fit(np.asarray(scores, dtype=float).reshape(-1, 1), np.asarray(y_true, dtype=int))
+    return model
+
+
+def apply_platt(model: LogisticRegression, scores: np.ndarray) -> np.ndarray:
+    """Calibrated P(label = 1) for raw scores."""
+    column = list(model.classes_).index(1)
+    return model.predict_proba(np.asarray(scores, dtype=float).reshape(-1, 1))[:, column]
+
+
 def fit_calibrators(y_true: np.ndarray, scores: np.ndarray) -> dict[str, CalibrationResult]:
     """Raw, Platt and isotonic, each scored on the same out-of-fold predictions.
 
@@ -79,9 +96,7 @@ def fit_calibrators(y_true: np.ndarray, scores: np.ndarray) -> dict[str, Calibra
         )
     }
 
-    platt = LogisticRegression(max_iter=1000)
-    platt.fit(scores.reshape(-1, 1), y_true)
-    platt_scores = platt.predict_proba(scores.reshape(-1, 1))[:, 1]
+    platt_scores = apply_platt(fit_platt(y_true, scores), scores)
     results["platt"] = CalibrationResult(
         "platt",
         float(brier_score_loss(y_true, platt_scores)),

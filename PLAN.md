@@ -1,14 +1,15 @@
 # Plan
 
-39 tickets. **60% shipped** (phase 1 + phase 2a). The remaining **40% is
-split 30% Sarvesh / 10% us**, weighted by effort rather than ticket count.
+39 tickets. **66% shipped** (phase 1, phase 2a, and our T27 + T28). The final
+40% was **split 30% Sarvesh / 10% us**, weighted by effort rather than ticket
+count; 6 of our 10 points are done.
 
 | Slice | Tickets | Share | Status |
 |---|---|---|---|
 | Phase 1 — foundation | T01–T18 | 40% | ✅ shipped |
 | Phase 2a — evaluation and models | T19–T26 | 20% | ✅ shipped (PR) |
-| Phase 2b — **Sarvesh** | T29–T38 | 30% | open |
-| Phase 2b — **us** | T27, T28, T39 | 10% | open |
+| Phase 2b — **Sarvesh** | T29–T38 (issues #2–#11) | 30% | open, unblocked |
+| Phase 2b — **us** | T27, T28 · T39 | 6% · 4% | ✅ T27, T28 shipped · T39 open |
 
 Each ticket is one commit (or one small PR) with a definition of done, so
 "finished" is a check rather than an opinion.
@@ -52,6 +53,19 @@ Each ticket is one commit (or one small PR) with a definition of done, so
 | T25 | School-level context join | free-lunch unconfirmed; race out (F13) |
 | T26 | Tests for phase 2a, CI, make targets | 184 tests, 94% |
 
+### Phase 2b — our contracts (6%)
+
+| # | Ticket | Result |
+|---|---|---|
+| T27 | Model persistence + provenance sidecar | bundle reproduces its CV AUC to 6 digits; 5 integrity checks |
+| T28 | `rank(records, bundle, budget)` | the contract in [docs/inference.md](docs/inference.md) |
+
+Building T28 found two problems no metric had shown: a blank age cell moved a
+student 50 percentile points (**F14**, fixed — the deployed model has no
+missingness flags, at no cost in AUC), and the model's key input is missing for
+every student outside the Tier-2 subsample (**F15** — the app ranks Tier-2
+readers, it does not screen a whole school).
+
 **What phase 2a changed.** Three results reshape the remaining work:
 
 1. **Logistic regression is the model** (F8). Every tree ensemble and the MLP
@@ -67,9 +81,9 @@ Each ticket is one commit (or one small PR) with a definition of done, so
 
 ## Phase 2b — open (40%)
 
-Ordered by dependency. **T27 and T28 come first**: the Streamlit app (T37) and
-the model card (T36) both consume their output, so they gate Sarvesh's
-largest tickets.
+Ordered by dependency. **T27 and T28 are done**, so nothing in Sarvesh's list
+is blocked on us any more. The contract they expose is
+[docs/inference.md](docs/inference.md).
 
 ```
 T27 persistence ──► T28 inference ──► T37 Streamlit app ──┐
@@ -82,7 +96,7 @@ T33 SHAP · T35 paper replication ───────────────�
 
 ### Us — 10%
 
-#### T27 · Model persistence — 2%
+#### T27 · Model persistence — 2% · ✅ shipped
 joblib artefact plus a JSON sidecar: data source, git SHA, config, feature
 names, CV scores, chosen threshold and the cost ratio it assumes. A saved model
 with no provenance is not reusable.
@@ -90,7 +104,7 @@ with no provenance is not reusable.
 recorded out-of-fold AUC to 3 dp; the sidecar refuses to load against a
 different feature list.
 
-#### T28 · Inference module — 4%
+#### T28 · Inference module — 4% · ✅ shipped
 `rank(records, budget=None)` against a stable input schema. Validates inputs,
 refuses unknown or leaking columns through the existing guard, and returns a
 **ranked queue with percentile and calibrated probability** — not a yes/no

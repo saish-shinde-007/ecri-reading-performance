@@ -30,6 +30,20 @@ def cmd_synth(config: Config, args: argparse.Namespace) -> int:
 
     paths.ensure_dirs()
     frame = datagen.generate_frame(n_rows=args.rows or config.synthetic_rows, seed=config.seed)
+    if args.features_only:
+        # A valid `ecri rank` input — identifier plus model inputs, no outcomes —
+        # drawn from the students the model is for: those with a baseline on
+        # the target's own measure. Everyone else is out of scope (F15).
+        key = schema.BASELINE_OF_TARGET[config.target]
+        in_scope = frame[frame[key].notna()]
+        columns = [schema.STUDENT_ID] + [c for c in schema.FEATURES if c in frame.columns]
+        out = paths.INTERIM / "synthetic_rank_input.csv"
+        in_scope[columns].to_csv(out, index=False)
+        print(
+            f"wrote {paths.rel(out)}: {len(in_scope):,} students with a baseline {key} "
+            f"(who the model is for, F15) x {len(columns) - 1} inputs"
+        )
+        return 0
     out = paths.INTERIM / "synthetic_ECRIDataSet.csv"
     frame.to_csv(out, index=False)
     labelled = frame[frame[config.target].notna()]
@@ -442,6 +456,151 @@ def cmd_school(config: Config, args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_model(config: Config, args: argparse.Namespace) -> int:
+    """Train, inspect or verify a saved model bundle."""
+    import json
+
+    from . import persist
+
+    if args.model_command == "train":
+        frame, dataset = _prepared(config)
+        data_info = {"source": dataset.source}
+        if dataset.is_real and dataset.path is not None:
+            data_info["file"] = dataset.path.name
+            data_info["file_sha256"] = persist._sha256(dataset.path)
+        else:
+            data_info["generator"] = (
+                f"ecri.datagen(seed={config.seed}, rows={config.synthetic_rows})"
+            )
+        print(f"training `{args.model}`: {config.split.n_folds} folds x {args.repeats} repeats ...")
+        bundle = persist.train_bundle(
+            frame,
+            config.target,
+            args.model,
+            strategy=config.split.strategy,
+            n_folds=config.split.n_folds,
+            repeats=args.repeats,
+            seed=config.seed,
+            data_info=data_info,
+        )
+        directory = persist.save_bundle(bundle, args.out)
+        rec = bundle.metadata["operating_points"]["recommended"]
+        print(f"\n{bundle.summary()}")
+        print(
+            f"  operating point at 1:1: flags {rec['flagged_rate']:.1%}, catches "
+            f"{rec['recall_at_risk']:.1%} of at-risk students — rank, don't flag (F11)"
+        )
+        if not dataset.is_real:
+            print(
+                "  WARNING: trained on SYNTHETIC data — fine for building the app, "
+                "not for any claim about students. `make data` fetches the real files."
+            )
+        print(f"\nsaved {paths.rel(directory)}")
+        return 0
+
+    directory = args.dir or persist.default_dir("logistic", config.target)
+    if args.model_command == "show":
+        meta = persist.read_metadata(directory)
+        if args.json:
+            print(json.dumps(meta, indent=2))
+            return 0
+        cv, data, code = meta["cv"], meta["data"], meta["code"]
+        print(f"{meta['model']['name']} → {meta['target']}  (format {meta['format_version']})")
+        print(
+            f"  data      {data['source']}, {data['rows']:,} rows, "
+            f"{data['positive_rate']:.1%} adequate growth"
+        )
+        print(f"  CV AUC    {cv['auc_mean']:.3f} ± {cv['auc_sd']:.3f}")
+        print(
+            f"  code      ecri {code['ecri']} @ {str(code['git_sha'])[:12]}"
+            + (" (dirty)" if code.get("git_dirty") else "")
+        )
+        print(f"  features  {len(meta['features'])}: {', '.join(meta['features'])}")
+        print(f"  created   {meta['created_utc']}")
+        return 0
+
+    if args.model_command == "verify":
+        bundle = persist.load_bundle(directory)
+        print(
+            "integrity OK: sha256 matches, features agree, probe reproduces "
+            f"({paths.rel(directory)})"
+        )
+        if not args.cv:
+            return 0
+        frame, _ = _prepared(config)
+        recorded = bundle.metadata["cv"]["auc_mean"]
+        reproduced = persist.reproduce_cv(bundle, frame)
+        agree = round(recorded, 3) == round(reproduced, 3)
+        print(
+            f"CV AUC recorded {recorded:.6f}, reproduced {reproduced:.6f} — "
+            + ("agree to 3 dp" if agree else "DISAGREE")
+        )
+        return 0 if agree else 1
+    raise SystemExit(f"unknown model command {args.model_command!r}")
+
+
+def _cmd_rank(config: Config, args: argparse.Namespace) -> int:
+    """Rank students from a CSV, most at risk first."""
+    from . import inference, persist
+
+    bundle = persist.load_bundle(args.model_dir or persist.default_dir("logistic", config.target))
+    records = pd.read_csv(args.input)
+    ranking = inference.rank(
+        records,
+        bundle,
+        budget=args.budget,
+        id_column=args.id_column,
+        ignore_unknown=args.ignore_unknown,
+    )
+    print(ranking.summary())
+    for note in ranking.warnings:
+        print(f"  note: {note}")
+    shown = ranking.table.head(args.show)
+    cols = [
+        "rank",
+        ranking.id_column,
+        "p_adequate_growth",
+        "risk_percentile",
+        "features_present",
+        "notes",
+    ]
+    print(f"\n{shown[cols].round(3).to_string(index=False)}")
+    print("\nA ranking is a prompt to look more closely, not a placement decision.")
+    if args.out:
+        ranking.table.to_csv(args.out, index=False)
+        print(f"wrote {args.out}")
+    return 0
+
+
+def _user_facing(command):
+    """Report input and integrity problems as one line on stderr, exit 2.
+
+    These are mistakes a user can fix (a labelled file, a missing bundle), so
+    a traceback would be noise. Anything else still raises.
+    """
+
+    def run(config: Config, args: argparse.Namespace) -> int:
+        from . import inference, persist
+
+        try:
+            return command(config, args)
+        except (
+            inference.InputError,
+            split.LeakageError,
+            persist.IntegrityError,
+            FileNotFoundError,
+        ) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+
+    run.__doc__ = command.__doc__
+    return run
+
+
+cmd_model = _user_facing(_cmd_model)
+cmd_rank = _user_facing(_cmd_rank)
+
+
 COMMANDS = {
     "synth": cmd_synth,
     "check": cmd_check,
@@ -452,6 +611,8 @@ COMMANDS = {
     "importance": cmd_importance,
     "calibrate": cmd_calibrate,
     "school": cmd_school,
+    "model": cmd_model,
+    "rank": cmd_rank,
 }
 
 
@@ -467,6 +628,11 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("eda", help="write reports/eda.md and figures")
     p_synth = sub.add_parser("synth", help="write a synthetic analysis table")
     p_synth.add_argument("--rows", type=int, default=0)
+    p_synth.add_argument(
+        "--features-only",
+        action="store_true",
+        help="write an `ecri rank` input (id + model inputs, no outcomes) instead",
+    )
     p_base = sub.add_parser("baseline", help="fit and score the baselines")
     p_base.add_argument("--repeats", type=int, default=1, help="repeat over N random splits")
 
@@ -500,6 +666,32 @@ def build_parser() -> argparse.ArgumentParser:
     p_sch.add_argument("--base", default="logistic")
     p_sch.add_argument("--repeats", type=int, default=5)
     p_sch.add_argument("--bootstrap", type=int, default=2000)
+
+    p_model = sub.add_parser("model", help="train, inspect and verify a saved model")
+    msub = p_model.add_subparsers(dest="model_command", required=True)
+    p_train = msub.add_parser("train", help="evaluate, calibrate, fit and save a bundle")
+    p_train.add_argument("--model", default="logistic", help="registry name (default logistic)")
+    p_train.add_argument("--repeats", type=int, default=5)
+    p_train.add_argument("--out", help="bundle directory (default models/<model>-<target>)")
+    p_show = msub.add_parser("show", help="print a bundle's metadata without loading it")
+    p_show.add_argument("dir", nargs="?", help="bundle directory")
+    p_show.add_argument("--json", action="store_true", help="print the raw sidecar")
+    p_ver = msub.add_parser("verify", help="check a bundle's integrity")
+    p_ver.add_argument("dir", nargs="?", help="bundle directory")
+    p_ver.add_argument("--cv", action="store_true", help="also reproduce the recorded CV AUC")
+
+    p_rank = sub.add_parser("rank", help="rank students from a CSV, most at risk first")
+    p_rank.add_argument("input", help="CSV of students: an id column plus model inputs")
+    p_rank.add_argument("--model-dir", help="bundle directory (default models/logistic-<target>)")
+    p_rank.add_argument("--budget", type=int, help="return only the top N students")
+    p_rank.add_argument("--id-column", default=schema.STUDENT_ID)
+    p_rank.add_argument(
+        "--ignore-unknown",
+        action="store_true",
+        help="drop columns the model does not use instead of refusing",
+    )
+    p_rank.add_argument("--out", help="write the full ranking to this CSV")
+    p_rank.add_argument("--show", type=int, default=15, help="rows to print")
     return parser
 
 
