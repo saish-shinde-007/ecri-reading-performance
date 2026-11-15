@@ -37,7 +37,7 @@ jobs:
         # without re-locking, so the CI environment can never drift silently.
         run: |
           echo "$VIRTUAL_ENV/bin" >> "$GITHUB_PATH"
-          uv sync --locked --extra dev
+          if [ "${{ matrix.python-version }}" = "3.12" ]; then uv sync --locked --extra dev --extra boost; else uv sync --locked --extra dev; fi
 
       - name: Confirm the interpreter matches the matrix
         run: python -c "import sys; assert sys.version.startswith('${{ matrix.python-version }}'), sys.version; print(sys.version)"
