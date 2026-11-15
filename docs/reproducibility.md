@@ -122,7 +122,7 @@ release-check` and every target of `make all`. The record was made on the M4.
 |---|---|---|---|---|
 | Compute box (M4, 12 cores) | arm64, macOS | 3.12.3 | 85 of 85 agree | **0.0** |
 | Laptop (M1 Air, 8 cores) | arm64, macOS | 3.12.9 | 85 of 85 agree | **0.0** |
-| CI runner (GitHub Actions) | x86-64, Linux | 3.12 | 84 of 85 agree, then 84 of 84 under the rule below | ≤ 5e-4 |
+| CI runner (GitHub Actions) | x86-64, Linux | 3.12 | 76 of 76 gated agree; the 9 at-risk recalls are reported, one off by 6.7e-4 | 2.2e-4 |
 
 **On ARM it is bit-exact.** The laptop and the M4 differ in chip, core count
 and Python patch version, yet every recorded number matches to the last
@@ -149,6 +149,11 @@ record was made on**, where they are bit-exact, and **reported elsewhere**.
 Every conclusion the project draws rests on the continuous numbers, and those
 are gated everywhere. To make the record on x86-64 instead, re-record there
 with `--write`.
+
+Under this rule the x86-64 run gates 76 numbers, since all nine at-risk recalls
+move from gated to reported. All 76 agree, the largest difference being 2.2e-4,
+within the 5e-4 tolerance. That is the same tree-construction effect showing up
+faintly in the forest's continuous metrics.
 
 ## 6. How long it takes
 
