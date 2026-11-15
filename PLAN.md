@@ -1,15 +1,16 @@
 # Plan
 
-39 tickets. **66% shipped** (phase 1, phase 2a, and our T27 + T28). The final
-40% was **split 30% Sarvesh / 10% us**, weighted by effort rather than ticket
-count; 6 of our 10 points are done.
+39 tickets. **70% shipped**: phase 1, phase 2a, and all of our phase-2b
+tickets (T27, T28, T39). What remains is Sarvesh's 30% (T29–T38, issues
+#2–#11). The final 40% was split 30% Sarvesh / 10% us, weighted by effort
+rather than ticket count.
 
 | Slice | Tickets | Share | Status |
 |---|---|---|---|
 | Phase 1 — foundation | T01–T18 | 40% | ✅ shipped |
 | Phase 2a — evaluation and models | T19–T26 | 20% | ✅ shipped (PR) |
 | Phase 2b — **Sarvesh** | T29–T38 (issues #2–#11) | 30% | open, unblocked |
-| Phase 2b — **us** | T27, T28 · T39 | 6% · 4% | ✅ T27, T28 shipped · T39 open |
+| Phase 2b — **us** | T27, T28, T39 | 10% | ✅ shipped (tag `v0.9.0`) |
 
 Each ticket is one commit (or one small PR) with a definition of done, so
 "finished" is a check rather than an opinion.
@@ -53,12 +54,13 @@ Each ticket is one commit (or one small PR) with a definition of done, so
 | T25 | School-level context join | free-lunch unconfirmed; race out (F13) |
 | T26 | Tests for phase 2a, CI, make targets | 184 tests, 94% |
 
-### Phase 2b — our contracts (6%)
+### Phase 2b — our tickets (10%)
 
 | # | Ticket | Result |
 |---|---|---|
 | T27 | Model persistence + provenance sidecar | bundle reproduces its CV AUC to 6 digits; 5 integrity checks |
 | T28 | `rank(records, bundle, budget)` | the contract in [docs/inference.md](docs/inference.md) |
+| T39 | Reproducibility gate | lockfile, pinned data, seed audit, `make reproduce`, generated README — [docs/reproducibility.md](docs/reproducibility.md) |
 
 Building T28 found two problems no metric had shown: a blank age cell moved a
 student 50 percentile points (**F14**, fixed — the deployed model has no
@@ -113,7 +115,12 @@ flag (F11). With a `budget`, returns the top-k.
 a record with a post-baseline column is rejected; a budget of k returns exactly
 k students in score order.
 
-#### T39 · Reproducibility pass and release — 4%
+#### T39 · Reproducibility pass and release — 4% · ✅ shipped
+
+Shipped as `v0.9.0`. The `v1.0.0` tag waits for T38, because a release
+certifies the numbers the final report quotes; cutting it is now
+`make release-check` plus a tag ([RELEASING.md](RELEASING.md)).
+
 Lockfile, seed audit, `make all` from a clean clone on both the laptop and the
 M4, documented runtimes, tagged `v1.0`.
 *Done when:* a fresh clone reproduces the F8 table to 3 dp; every report in

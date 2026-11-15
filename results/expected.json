@@ -1,0 +1,162 @@
+{
+  "format": 1,
+  "config": {
+    "target": "RMwidRS_target",
+    "strategy": "school",
+    "n_folds": 5,
+    "repeats": 10,
+    "bootstrap": 4000,
+    "seed": 20260101,
+    "reference": "logistic",
+    "bundle_model": "logistic",
+    "bundle_repeats": 5
+  },
+  "environment": {
+    "python": "3.12.3",
+    "machine": "arm64",
+    "sklearn": "1.9.1",
+    "numpy": "2.5.4",
+    "pandas": "3.1.1"
+  },
+  "data": {
+    "commit": "7168d48d463ae92e58132d4c000611569cb59bba",
+    "sha256": {
+      "ECRIDataSet.csv": "1883c5796132cfb524cf691d9dc0461ad535239c0cfb720efa0da4c1254e58fc",
+      "ECRIRawData.csv": "ca214ae9397b313b35824ae003ecd671618e3249fb9ed3d09c3f9f2b46245c5c",
+      "MetaData.csv": "aae2184080c30b7b9ddad31e8f9853aaa63d021a3c2365818ce65e433399e722"
+    }
+  },
+  "label_rule": {
+    "RMwidRS_target": {
+      "threshold": 27.0,
+      "accuracy": 1.0,
+      "n": 946
+    },
+    "RMwdaRS_target": {
+      "threshold": 11.0,
+      "accuracy": 1.0,
+      "n": 946
+    }
+  },
+  "model_comparison": {
+    "models": {
+      "logistic": {
+        "auc_mean": 0.661892,
+        "auc_sd": 0.008275,
+        "ap_mean": 0.661254,
+        "recall_at_risk": 0.555257,
+        "brier_mean": 0.231456
+      },
+      "random_forest": {
+        "auc_mean": 0.652289,
+        "auc_sd": 0.005399,
+        "ap_mean": 0.639066,
+        "recall_at_risk": 0.469799,
+        "brier_mean": 0.232879
+      },
+      "hist_gradient_boosting": {
+        "auc_mean": 0.643696,
+        "auc_sd": 0.007638,
+        "ap_mean": 0.650123,
+        "recall_at_risk": 0.532662,
+        "brier_mean": 0.241786
+      },
+      "hgb_native_nan": {
+        "auc_mean": 0.64058,
+        "auc_sd": 0.01049,
+        "ap_mean": 0.641142,
+        "recall_at_risk": 0.54094,
+        "brier_mean": 0.243567
+      },
+      "mlp": {
+        "auc_mean": 0.619681,
+        "auc_sd": 0.025765,
+        "ap_mean": 0.622267,
+        "recall_at_risk": 0.484787,
+        "brier_mean": 0.238255
+      },
+      "tree_depth3": {
+        "auc_mean": 0.599683,
+        "auc_sd": 0.014239,
+        "ap_mean": 0.602765,
+        "recall_at_risk": 0.363758,
+        "brier_mean": 0.247829
+      },
+      "logistic_baseline_only": {
+        "auc_mean": 0.59296,
+        "auc_sd": 0.001905,
+        "ap_mean": 0.574644,
+        "recall_at_risk": 0.424385,
+        "brier_mean": 0.240592
+      },
+      "stratified": {
+        "auc_mean": 0.504996,
+        "auc_sd": 0.015253,
+        "ap_mean": 0.530188,
+        "recall_at_risk": 0.48434,
+        "brier_mean": 0.493869
+      },
+      "majority": {
+        "auc_mean": 0.5,
+        "auc_sd": 0.0,
+        "ap_mean": 0.527484,
+        "recall_at_risk": 0.0,
+        "brier_mean": 0.472516
+      }
+    },
+    "vs_reference": {
+      "majority": {
+        "delta": -0.165483,
+        "ci_low": -0.19796,
+        "ci_high": -0.130228,
+        "decisive": true
+      },
+      "stratified": {
+        "delta": -0.148191,
+        "ci_low": -0.199328,
+        "ci_high": -0.096178,
+        "decisive": true
+      },
+      "logistic_baseline_only": {
+        "delta": -0.072353,
+        "ci_low": -0.108213,
+        "ci_high": -0.036473,
+        "decisive": true
+      },
+      "tree_depth3": {
+        "delta": -0.048121,
+        "ci_low": -0.083976,
+        "ci_high": -0.012172,
+        "decisive": true
+      },
+      "hgb_native_nan": {
+        "delta": -0.009159,
+        "ci_low": -0.039274,
+        "ci_high": 0.02172,
+        "decisive": false
+      },
+      "random_forest": {
+        "delta": -0.007832,
+        "ci_low": -0.038395,
+        "ci_high": 0.021839,
+        "decisive": false
+      },
+      "hist_gradient_boosting": {
+        "delta": -0.006469,
+        "ci_low": -0.037374,
+        "ci_high": 0.024695,
+        "decisive": false
+      },
+      "mlp": {
+        "delta": -0.003757,
+        "ci_low": -0.024126,
+        "ci_high": 0.016636,
+        "decisive": false
+      }
+    }
+  },
+  "deployed_model": {
+    "auc_mean": 0.662506,
+    "auc_sd": 0.010692
+  }
+}

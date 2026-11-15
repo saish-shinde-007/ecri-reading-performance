@@ -35,39 +35,45 @@ Full write-up, with five further measured findings: **[docs/findings.md](docs/fi
 
 ## Results so far
 
-Nine models, 5-fold school-disjoint CV repeated 10 times, ROC-AUC on
-out-of-fold predictions, Word Identification target:
+<!-- results:start -->
+9 models, 5-fold school-disjoint CV repeated 10 times, ROC-AUC on out-of-fold predictions, Word Identification target. Intervals are a paired bootstrap over students with the folds held fixed (4,000 resamples).
 
-| Model | AUC | vs logistic, 95% CI |
+| Model | AUC | vs logistic regression, 95% CI |
 |---|---|---|
 | **Logistic regression** | **0.662 ± 0.008** | — |
-| Random forest | 0.652 ± 0.005 | −0.009 [−0.040, +0.021] · within noise |
-| Hist gradient boosting | 0.644 ± 0.008 | −0.008 [−0.038, +0.024] · within noise |
-| Hist GB, native NaN | 0.641 ± 0.010 | −0.010 [−0.041, +0.021] · within noise |
-| MLP (32-16) | 0.617 ± 0.028 | −0.006 [−0.027, +0.015] · within noise |
-| Decision tree, depth 3 | 0.600 ± 0.014 | −0.049 [−0.086, −0.013] · **worse** |
-| Logistic, baseline score only | 0.593 ± 0.002 | −0.073 [−0.110, −0.037] · **worse** |
-| Majority class | 0.500 | −0.167 · **worse** |
+| Random forest | 0.652 ± 0.005 | −0.008 [−0.038, +0.022] · within noise |
+| Hist gradient boosting | 0.644 ± 0.008 | −0.006 [−0.037, +0.025] · within noise |
+| Hist GB, native NaN | 0.641 ± 0.010 | −0.009 [−0.039, +0.022] · within noise |
+| MLP (32-16) | 0.620 ± 0.026 | −0.004 [−0.024, +0.017] · within noise |
+| Decision tree, depth 3 | 0.600 ± 0.014 | −0.048 [−0.084, −0.012] · **worse** |
+| Logistic, baseline score only | 0.593 ± 0.002 | −0.072 [−0.108, −0.036] · **worse** |
+| Stratified guess | 0.505 ± 0.015 | −0.148 [−0.199, −0.096] · **worse** |
+| Majority class | 0.500 ± 0.000 | −0.165 [−0.198, −0.130] · **worse** |
 
-Intervals are a paired bootstrap over students with the folds held fixed. What
-they say:
+*Generated from [`results/expected.json`](results/expected.json) by `ecri readme`. `make reproduce` re-derives every number from the pinned data and fails if any moves by more than 0.0005.*
+<!-- results:end -->
 
-- **Nothing beats logistic regression.** Every flexible model is inside the
-  noise band; the MLP buys 3.5× the variance for nothing. Logistic is the model
-  to ship — most accurate, most stable, and explainable to a teacher. (F8)
-- **0.66 is a real result.** The best single feature correlates at |r| = 0.20,
-  and the multivariate model beats the single-feature one decisively (+0.073).
-  Anything near 0.9 here is a leak. (F3, F7)
-- **The useful output is a ranking, not a flag.** At a 3:1 cost of missing a
-  struggling reader, the cost-optimal threshold flags **95%** of students.
-  With 47% falling short and a 0.66 ranker, a yes/no screen degenerates into
-  screening everyone; ordering a fixed support budget is where the model earns
-  its keep. (F11)
-- **Five or six features carry it.** Baseline Word ID is an order of magnitude
-  ahead of everything else. (F12)
-- **Imputation choice doesn't matter** (F10), and **school racial composition
-  is excluded** — it adds nothing, and a support-allocation tool must not use
-  it. (F13)
+What the intervals say:
+
+- **Nothing beats logistic regression.** Every flexible model sits inside the
+  noise band, and the MLP's spread is several times logistic's. Logistic is the
+  model to ship: the most accurate, the most stable, and explainable to a
+  teacher. (F8)
+- **An AUC near 0.66 is a real result.** The best single feature correlates at
+  |r| = 0.20, and the multivariate model beats the single-feature one
+  decisively. Anything near 0.9 here would be a leak. (F3, F7)
+- **The useful output is a ranking, not a flag.** With nearly half the
+  students falling short and a ranker this strong, the cost-optimal yes/no
+  threshold flags nearly everyone once missing a struggling reader costs even
+  twice a false alarm. Ordering a fixed support budget is where the model
+  earns its keep. (F11)
+- **It ranks Tier-2 readers who have a baseline Woodcock score.** For every
+  other student in the cohort that score is missing, so it is not a
+  whole-school screener. (F15)
+- **Five or six features carry it**; baseline Word ID is an order of magnitude
+  ahead of everything else (F12). **Imputation choice doesn't matter** (F10),
+  and **school racial composition is excluded**: it adds nothing, and a
+  support-allocation tool must not use it (F13).
 
 Every finding, with the numbers behind it: **[docs/findings.md](docs/findings.md)**.
 
@@ -82,6 +88,7 @@ make calibrate   # reliability curves + cost-justified threshold
 make importance  # permutation importance, two model families
 make model       # train, calibrate, save and verify the deployable model
 make rank-demo   # rank a batch of students with it, most at risk first
+make reproduce   # re-derive every headline number; fails if any moves
 ```
 
 To use the model from code — loading it, ranking students, reading its
@@ -147,19 +154,22 @@ label lookup. The guard rejects them.
 
 ## Project status
 
-**66% shipped.** Phase 1 (foundation, 40%), phase 2a (evaluation and models,
-20%), and our phase-2b contracts (6%): model persistence (T27) and the ranking
-contract (T28). 229 tests, 95% coverage, CI on Python 3.11–3.13.
+**70% shipped — every ticket of ours is done** (tag `v0.9.0`). Phase 1
+(foundation, 40%), phase 2a (evaluation and models, 20%), and our phase-2b
+tickets (10%): model persistence (T27), the ranking contract (T28), and the
+reproducibility gate (T39).
 
-Building the ranking contract turned up two things the metrics never showed:
-a single blank cell could move a student half the queue (F14, fixed), and the
-model is grounded only for Tier-2 readers with a baseline Woodcock score —
-for every other student in the cohort its most important input is missing
-(F15).
+Everything here is reproducible from a fresh clone: dependencies are locked,
+the data is pinned to a commit and verified by sha256, every seed is audited
+by tests, and `make reproduce` re-derives the headline numbers and fails if
+any moves. CI runs that gate on Linux, in addition to the Mac laptop and the
+compute box it was checked on. Details in
+**[docs/reproducibility.md](docs/reproducibility.md)**.
 
-**Remaining 34%**, in **[PLAN.md](PLAN.md)**: Sarvesh's tickets
-([#2–#11](https://github.com/saish-shinde-007/ecri-reading-performance/issues?q=is%3Aissue%20label%3A%22owner%3A%20sarvesh%22)),
-now unblocked, and our release ticket T39.
+**Remaining 30%** is Sarvesh's
+([issues #2–#11](https://github.com/saish-shinde-007/ecri-reading-performance/issues?q=is%3Aissue%20label%3A%22owner%3A%20sarvesh%22)),
+unblocked since T27/T28. `v1.0.0` follows his final report
+([RELEASING.md](RELEASING.md)).
 
 ## Data and licence
 
